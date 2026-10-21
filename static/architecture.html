@@ -149,11 +149,11 @@
                 <feGaussianBlur stdDeviation="3" result="blur"></feGaussianBlur>
                 <feMerge><feMergeNode in="blur"></feMergeNode><feMergeNode in="SourceGraphic"></feMergeNode></feMerge>
               </filter>
-              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#65dce8"></path></marker>
-              <marker id="arrow-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#79aaff"></path></marker>
-              <marker id="arrow-violet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#c29aff"></path></marker>
-              <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#77e2b1"></path></marker>
-              <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#ffca7a"></path></marker>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 9 5 L 1 9 z" fill="#65dce8"></path></marker>
+              <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 9 5 L 1 9 z" fill="#79aaff"></path></marker>
+              <marker id="arrow-violet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 9 5 L 1 9 z" fill="#c29aff"></path></marker>
+              <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 9 5 L 1 9 z" fill="#77e2b1"></path></marker>
+              <marker id="arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 9 5 L 1 9 z" fill="#ffca7a"></path></marker>
             </defs>
 
             <rect class="zone" x="20" y="35" width="320" height="660" rx="14"></rect>
@@ -161,17 +161,21 @@
             <rect class="zone" x="365" y="35" width="450" height="660" rx="14"></rect>
             <text class="zone-label" x="385" y="62">APPLICATION HOST // MAC LAPTOP</text>
             <rect class="zone" x="840" y="35" width="340" height="430" rx="14"></rect>
-            <text class="zone-label" x="860" y="62">CLOUD SERVICE</text>
+            <text class="zone-label" x="860" y="62">EXTERNAL SERVICES</text>
             <rect class="zone" x="840" y="490" width="340" height="205" rx="14"></rect>
             <text class="zone-label" x="860" y="517">LOCAL DATA &amp; TOOLS</text>
 
             <g class="edges">
               <path class="edge" data-flows="briefing deepdive voice" d="M174 135 V163"></path>
               <text class="edge-label" x="228" y="153">clicks / typed input</text>
-              <path class="edge speech-edge" data-flows="voice" d="M174 254 V282"></path>
-              <text class="edge-label" x="230" y="274">microphone audio</text>
+              <path class="edge speech-edge" data-flows="voice" d="M58 110 C30 110 30 282 58 312"></path>
+              <text class="edge-label" x="78" y="269">spoken audio</text>
+              <path class="edge speech-edge" data-flows="voice" d="M174 229 V282"></path>
+              <text class="edge-label" x="236" y="262">start recognition</text>
               <path class="edge speech-edge" data-flows="voice" d="M174 373 V402"></path>
               <text class="edge-label" x="230" y="394">recognized text</text>
+              <path class="edge speech-edge" data-flows="voice" d="M320 443 C340 443 340 216 320 216"></path>
+              <text class="edge-label" x="350" y="390">parsed intent</text>
               <path class="edge" data-flows="briefing deepdive voice status" d="M320 202 C345 202 344 183 389 183"></path>
               <text class="edge-label" x="351" y="170">HTTPS / JSON</text>
               <path class="edge" data-flows="briefing deepdive" d="M389 212 C350 250 352 645 320 645"></path>
@@ -181,15 +185,13 @@
               <text class="edge-label" x="657" y="248">profile + settings</text>
               <path class="edge profile-edge" data-flows="voice briefing" d="M600 326 V350"></path>
               <text class="edge-label" x="666" y="342">read / atomic write</text>
-              <path class="edge profile-edge" data-flows="voice briefing" d="M710 293 C770 293 806 425 866 425"></path>
-              <text class="edge-label" x="812" y="409">JSON on disk</text>
               <path class="edge external" data-flows="briefing" d="M776 143 C810 143 820 149 866 149"></path>
-              <text class="edge-label" x="821" y="129">Exa Python SDK</text>
+              <text class="edge-label" x="821" y="129">Exa.search()</text>
               <path class="edge external" data-flows="briefing" d="M866 224 C820 224 820 196 776 196"></path>
               <text class="edge-label" x="822" y="239">highlights + metadata</text>
-              <path class="edge external" data-flows="deepdive" d="M776 388 C818 388 814 303 866 303"></path>
+              <path class="edge external" data-flows="deepdive" d="M776 388 C818 388 814 331 866 331"></path>
               <text class="edge-label" x="822" y="370">selected article URLs</text>
-              <path class="edge external" data-flows="deepdive" d="M866 367 C820 367 816 424 776 424"></path>
+              <path class="edge external" data-flows="deepdive" d="M866 395 C820 395 816 424 776 424"></path>
               <text class="edge-label" x="822" y="439">full text (max 6k chars)</text>
               <path class="edge local" data-flows="deepdive status" d="M776 468 C816 468 820 568 866 568"></path>
               <text class="edge-label" x="819" y="504">HTTP localhost:11434</text>
@@ -199,14 +201,12 @@
               <text class="edge-label" x="654" y="540">/api/speech</text>
               <path class="edge speech-edge" data-flows="voice briefing deepdive" d="M490 585 C420 585 382 551 320 551"></path>
               <text class="edge-label" x="387" y="574">WAV audio</text>
-              <path class="edge profile-edge" data-flows="status" d="M490 663 C444 663 444 182 490 182"></path>
-              <text class="edge-label" x="455" y="620">environment</text>
               <path class="edge" data-flows="status" d="M776 108 C811 108 822 94 866 94"></path>
               <text class="edge-label" x="823" y="82">Exa reachability</text>
               <path class="edge local" data-flows="status" d="M776 108 C811 108 822 543 866 543"></path>
               <text class="edge-label" x="816" y="532">Ollama model check</text>
-              <path class="edge external" data-flows="deepdive" d="M1003 224 V260"></path>
-              <text class="edge-label" x="1066" y="247">article content</text>
+              <path class="edge external" data-flows="deepdive" d="M1003 272 V288"></path>
+              <text class="edge-label" x="1066" y="283">article content</text>
             </g>
 
             <g class="node" data-node="user" role="button" tabindex="0" aria-label="User input">
@@ -260,8 +260,8 @@
             <g class="node profile" data-node="profile" role="button" tabindex="0" aria-label="Local profile store">
               <rect x="490" y="260" width="220" height="66" rx="9"></rect>
               <text class="node-kicker" x="508" y="280">PERSISTENCE // LOCAL</text>
-              <text class="node-title" x="508" y="302">Profile JSON store</text>
-              <text class="node-sub" x="508" y="317">names · topics · per-profile settings</text>
+              <text class="node-title" x="508" y="302">data/profile.json</text>
+              <text class="node-sub" x="508" y="317">local profiles · topics · settings</text>
             </g>
             <g class="node" data-node="selection" role="button" tabindex="0" aria-label="News selection and deduplication">
               <rect x="389" y="350" width="387" height="170" rx="10"></rect>
@@ -279,26 +279,23 @@
               <text class="node-title" x="508" y="593">macOS say + afconvert</text>
               <text class="node-sub" x="508" y="610">selected voice → AIFF → WAV</text>
             </g>
-            <g class="node" data-node="runtime" role="button" tabindex="0" aria-label="Runtime configuration">
-              <rect x="490" y="644" width="220" height="40" rx="8"></rect>
-              <text class="node-title" x="508" y="669">Environment configuration</text>
-            </g>
-
             <g class="node exa" data-node="exa" role="button" tabindex="0" aria-label="Exa search and content API">
-              <rect x="866" y="94" width="274" height="130" rx="10"></rect>
+              <rect x="866" y="94" width="274" height="178" rx="10"></rect>
               <text class="node-kicker" x="886" y="116">EXTERNAL SERVICE // HTTPS</text>
-              <text class="node-title" x="886" y="141">Exa.ai Search API</text>
-              <text class="node-sub" x="886" y="162">per-topic recent-news searches in parallel</text>
-              <text class="node-sub" x="886" y="180">news category · published date filters</text>
-              <text class="node-sub" x="886" y="198">highlights for efficient headline context</text>
-              <text class="node-sub" x="886" y="214">get_contents only for selected deep dives</text>
+              <text class="node-title" x="886" y="141">Exa Python SDK</text>
+              <text class="node-sub" x="886" y="162">search(type="fast", category="news")</text>
+              <text class="node-sub" x="886" y="180">start/end_published_date · num_results=Top N</text>
+              <text class="node-sub" x="886" y="198">contents={"highlights": True} for headlines</text>
+              <text class="node-sub" x="886" y="216">get_contents(urls, text=...)</text>
+              <text class="node-sub" x="886" y="234">max_characters=6000 · deep dives only</text>
+              <text class="node-sub" x="886" y="252">auth: EXA_API_KEY</text>
             </g>
             <g class="node exa" data-node="internet" role="button" tabindex="0" aria-label="Publisher websites">
-              <rect x="866" y="260" width="274" height="107" rx="10"></rect>
-              <text class="node-kicker" x="886" y="282">NEWS SOURCES</text>
-              <text class="node-title" x="886" y="307">Publisher articles</text>
-              <text class="node-sub" x="886" y="329">links open directly from the browser</text>
-              <text class="node-sub" x="886" y="346">full article text fetched through Exa on demand</text>
+              <rect x="866" y="288" width="274" height="107" rx="10"></rect>
+              <text class="node-kicker" x="886" y="310">NEWS SOURCES</text>
+              <text class="node-title" x="886" y="335">Publisher articles</text>
+              <text class="node-sub" x="886" y="357">links open directly from the browser</text>
+              <text class="node-sub" x="886" y="374">full text fetched through Exa on demand</text>
             </g>
             <g class="node ollama" data-node="ollama" role="button" tabindex="0" aria-label="Local Ollama model">
               <rect x="866" y="543" width="274" height="105" rx="10"></rect>
@@ -308,11 +305,6 @@
               <text class="node-sub" x="886" y="628">concise conversational deep-dive out</text>
             </g>
 
-            <g class="node profile" data-node="file" role="button" tabindex="0" aria-label="Profile JSON file on laptop">
-              <rect x="866" y="398" width="274" height="55" rx="9"></rect>
-              <text class="node-kicker" x="886" y="418">ON-DISK FILE</text>
-              <text class="node-title" x="886" y="441">data/profile.json</text>
-            </g>
           </svg>
         </div>
         <div class="legend" aria-label="Connection legend">
@@ -333,7 +325,7 @@
             <li>External data leaves the laptop only for Exa search/content requests and browser-managed speech recognition where the browser provider requires it.</li>
             <li>Ollama, profile data, and macOS speech synthesis run locally on the laptop.</li>
           </ul>
-          <div class="footnote">Privacy boundary: topic names are sent to Exa as search queries; selected article text and the profile name go to Ollama locally. Browser speech recognition may use its configured speech service. Opening publisher links contacts those sites directly. Microphone audio is not uploaded to FastAPI.</div>
+          <div class="footnote">Privacy boundary: topic names are sent to Exa as search queries; selected article text and the profile name go to Ollama locally. Browser speech recognition may use its configured speech service. Opening publisher links contacts those sites directly. Microphone audio goes to browser speech recognition, not FastAPI.</div>
         </section>
 
         <section class="panel flow-panel" aria-live="polite">
@@ -356,19 +348,17 @@
     const componentDetails = {
       user: ["User input", "The person starts a briefing, edits tracked topics/settings, chooses article numbers, or speaks a command.", ["Web mode uses buttons and text fields; voice mode uses browser speech recognition.", "The local browser clock supplies greeting and date display."]],
       hud: ["Browser HUD", "static/index.html is the single-page interface served by FastAPI. It maintains transient UI state and calls JSON APIs with fetch().", ["Displays grouped headlines, source links, highlights, profile settings, logs, and system status.", "Web and voice modes share the same backend endpoints.", "Reset clears current browser results and cancels stale briefing responses; it does not delete stored profile data."]],
-      stt: ["Speech recognition", "The browser Web Speech API (SpeechRecognition or webkitSpeechRecognition) turns microphone speech into text.", ["Voice commands are parsed in the browser, then topic/profile/news requests go to FastAPI.", "Recognition availability and behavior depend on browser support and its speech service.", "Microphone audio is not posted to this app's FastAPI server."]],
-      command: ["Command and selection parser", "Browser-side logic interprets recognized phrases and user-entered story numbers.", ["Supports run briefing, add/track/follow topic, remove/unfollow/stop tracking, topic follow-up and deep-dive selections.", "Topic commands take priority over the active number-selection conversation.", "Serial numbers are mapped back to globally numbered article records."]],
+      stt: ["Speech recognition", "The browser Web Speech API (SpeechRecognition or webkitSpeechRecognition) receives microphone input and turns it into a transcript.", ["The user speaks into the browser; the HUD starts and stops recognition.", "The recognized transcript flows to the browser command parser.", "Recognition availability and behavior depend on browser support and its speech service; audio is not posted to FastAPI."]],
+      command: ["Command and selection parser", "Browser-side logic interprets recognized phrases and user-entered story numbers, then dispatches the selected workflow.", ["Supports run briefing, add/track/follow topic, remove/unfollow/stop tracking, topic follow-up and deep-dive selections.", "Parsed commands trigger the HUD's API requests to FastAPI; story numbers resolve to article records.", "Topic commands take priority over the active number-selection conversation."]],
       audio: ["Browser audio output", "The browser receives WAV bytes from /api/speech and plays them with the Audio API.", ["Playback can be paused, resumed, or retried if the browser blocks autoplay.", "The same playback path reads voice confirmations, headlines, and Ollama deep-dive text."]],
       screen: ["On-screen output", "The browser renders categories and globally numbered story cards with source, publication date, summary, and expandable details.", ["Headlines are grouped by their assigned topic.", "Stories link to publishers in a new tab.", "System status and local interaction logs are separate dashboard widgets."]],
       api: ["FastAPI application server", "app.py serves the dashboard and architecture page and exposes profile, topics, news, status, voice-list, synthesis, and deep-dive APIs.", ["GET /api/profile and GET /api/profiles read profile state; POST /api/profiles creates a profile; POST /api/profiles/activate switches profiles.", "PUT /api/profile and PUT /api/profile/settings update the name and profile preferences.", "POST /api/topics/add and /api/topics/remove change tracked interests.", "POST /api/news searches and ranks; POST /api/news/deep-dive retrieves selected text and invokes Ollama.", "GET /api/status and GET /api/speech/voices check services; POST /api/speech returns generated WAV audio."]],
-      profile: ["Profile store", "The active profile contains a name, topic list, and its own hours, Top N, and speech voice preferences.", ["Stored as JSON; updates are written via a temporary file then atomically replaced.", "New profiles start with no topics.", "The full profile file remains on the laptop unless relocated using PROFILE_PATH.", "Active topic names are sent to Exa as search queries; selected article text and profile name are sent to local Ollama for deep dives."]],
-      file: ["data/profile.json", "Default on-disk persistence location for multiple user profiles.", ["PROFILE_PATH can override the file location.", "Names, topics, and settings are persisted locally.", "Topic strings become Exa queries; settings are not sent to Exa. A deep-dive prompt includes the profile name and selected article text for local Ollama."]],
+      profile: ["Local profile store", "The active profile contains a name, topic list, and its own hours, Top N, and speech voice preferences.", ["Profiles are persisted only in the local data/profile.json file; there is no cloud profile store.", "Updates are written through a temporary file and atomically replaced; new profiles start with no topics.", "Active topic names are sent to Exa as search queries; selected article text and profile name are sent to local Ollama for deep dives."]],
       selection: ["News selection pipeline", "The backend filters results to the requested published-date window, prioritizes topic coverage, removes likely duplicates, and assigns global story numbers.", ["One distinct story is reserved per topic with available results until Top N is reached.", "Duplicate detection compares canonical URLs and headline similarity; it is heuristic.", "Remaining slots are filled by Exa relevance score.", "The initial headline briefing is not synthesized by Ollama; it shows Exa titles/highlights."]],
-      exa: ["Exa.ai", "The Exa Python SDK makes HTTPS requests using EXA_API_KEY from the FastAPI process environment.", ["Search runs once per tracked topic in parallel with category=news and the chosen published-date window.", "Search requests ask for highlights rather than full page text.", "Only deep-dive-selected URLs trigger get_contents text retrieval.", "The dashboard status check makes a small test search."]],
+      exa: ["Exa APIs", "The Exa Python SDK makes HTTPS requests authenticated with EXA_API_KEY.", ["Exa.search() runs once per topic in parallel: type='fast', category='news', start_published_date, end_published_date, and num_results=Top N.", "Headline searches request contents={\"highlights\": True}; they do not fetch full article text.", "Exa.get_contents(urls, text={\"max_characters\": 6000}) runs only for deep-dive selections.", "The status check calls Exa.search(type='fast', category='news', num_results=1, contents=False)."]],
       internet: ["Publisher articles", "Article URLs point to publisher websites. The user can open those links directly from the story cards.", ["The app does not crawl publisher sites directly for the initial results.", "For a requested deep dive, Exa retrieves text for the selected URLs."]],
       ollama: ["Ollama / llama3", "Ollama runs locally on the laptop, normally at http://localhost:11434.", ["Only the deep-dive endpoint invokes /api/generate in the current implementation.", "Input is selected Exa article text, the profile name, and a constrained summary instruction.", "Initial topic headlines and highlights are not sent to Ollama.", "The status widget checks /api/tags for the configured model."]],
       synth: ["Local speech synthesis", "FastAPI uses macOS say to synthesize requested text, then afconvert to convert AIFF into WAV.", ["Voice names come from the macOS host via say -v ?.", "The WAV is streamed back to the browser; temporary files are removed after the response.", "Requires macOS say and afconvert."]],
-      runtime: ["Environment configuration", "Runtime environment variables configure integrations and persistence.", ["EXA_API_KEY authenticates Exa requests.", "OLLAMA_URL defaults to http://localhost:11434; OLLAMA_MODEL defaults to llama3.", "PROFILE_PATH optionally changes the profile JSON location."]]
     };
 
     const workflowDetails = {
@@ -390,7 +380,7 @@
       voice: {
         title: "Voice and topic changes",
         copy: "Voice input and output are split across browser speech recognition and server-side macOS speech synthesis.",
-        steps: ["User grants microphone permission and speaks into browser Web Speech API recognition.", "Browser receives a transcript; command parser recognizes briefing, add/remove topic, or story-number intents.", "Browser sends topic commands to /api/topics/add or /api/topics/remove; FastAPI updates active profile JSON.", "For spoken responses, browser POSTs text and selected voice to /api/speech.", "FastAPI runs say, converts AIFF to WAV with afconvert, and streams audio to browser playback controls."]
+        steps: ["User grants microphone permission and speaks into browser Web Speech API recognition.", "Browser receives a transcript; the parser dispatches briefing, add/remove topic, or story-number intents to the HUD workflow.", "The HUD sends the appropriate request to FastAPI; topic changes update the local data/profile.json store.", "For spoken responses, browser POSTs text and selected voice to /api/speech.", "FastAPI runs say, converts AIFF to WAV with afconvert, and streams audio to browser playback controls."]
       },
       status: {
         title: "System status",

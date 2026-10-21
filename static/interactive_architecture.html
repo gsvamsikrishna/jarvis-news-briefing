@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f17">
+  <title>Voice Interactive News briefing — Architecture</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f17;
+      --panel: #131a26;
+      --panel-2: #101722;
+      --line: #243045;
+      --text: #e6edf6;
+      --muted: #93a1b6;
+      --accent: #38bdf8;
+      --source: #94a3b8;
+      --edge: #3b82f6;
+      --queue: #22d3ee;
+      --reference: #f59e0b;
+      --processing: #c084fc;
+      --governed: #2dd4bf;
+      --output: #34d399;
+      --integration: #60a5fa;
+      --destination: #facc15;
+      --storage: #fb7185;
+      --config: #a3e635;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body { background: var(--bg); }
+    button, select { font: inherit; }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: #182232;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color .15s, background .15s, opacity .15s;
+    }
+    button:hover:not(:disabled) { border-color: #4e647f; background: #1d2b3e; }
+    button:disabled { opacity: .4; cursor: not-allowed; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    .topbar {
+      position: relative; z-index: 5; min-height: 72px; display: flex; gap: 18px;
+      align-items: center; justify-content: space-between; padding: 11px 16px;
+      background: rgba(11, 15, 23, .98); border-bottom: 1px solid var(--line);
+    }
+    .brand { min-width: 210px; }
+    .brand h1 { margin: 0; font-size: 15px; line-height: 1.3; letter-spacing: .01em; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+    .controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+    .controls button, .controls select { font-size: 11px; }
+    .controls .primary { color: #06131c; background: var(--accent); border-color: var(--accent); font-weight: 750; }
+    .controls .primary:hover { background: #7dd3fc; border-color: #7dd3fc; }
+    .controls select {
+      max-width: 170px; border: 1px solid var(--line); border-radius: 8px;
+      padding: 8px 28px 8px 9px; color: var(--text); background: #182232;
+    }
+    .workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 370px); }
+    .workspace.panel-hidden { grid-template-columns: minmax(0, 1fr) 0; }
+    .canvas-area { min-width: 0; min-height: 0; position: relative; background: #0b0f17; overflow: hidden; }
+    #network { width: 100%; height: 100%; touch-action: none; }
+    .hint {
+      position: absolute; bottom: 12px; left: 14px; z-index: 2; pointer-events: none;
+      color: #a5b3c7; background: rgba(11, 15, 23, .86); border: 1px solid rgba(65, 82, 105, .45);
+      border-radius: 8px; padding: 7px 9px; font-size: 10px;
+    }
+    .legend {
+      position: absolute; top: 12px; left: 12px; z-index: 2; width: 174px;
+      border: 1px solid rgba(65, 82, 105, .65); border-radius: 9px;
+      background: rgba(16, 23, 34, .94); padding: 9px;
+    }
+    .legend-title { margin: 0 0 7px; font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #cbd5e1; }
+    .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 7px; }
+    .legend-item { display: flex; gap: 6px; align-items: center; color: #aab7c8; font-size: 9px; white-space: nowrap; }
+    .swatch { width: 8px; height: 8px; border-radius: 3px; flex: 0 0 auto; }
+    .legend-edge { margin-top: 8px; padding-top: 7px; border-top: 1px solid #273449; display: grid; gap: 5px; }
+    .line-swatch { width: 20px; height: 0; border-top: 2px solid #8794a8; }
+    .line-swatch.lookup { border-top-style: dashed; border-color: var(--reference); }
+    .line-swatch.local { border-top-style: dotted; border-color: var(--config); }
+    .zoom-bar {
+      position: absolute; right: 14px; bottom: 14px; z-index: 3; display: flex; align-items: center; gap: 5px;
+      padding: 6px; border: 1px solid var(--line); border-radius: 10px; background: rgba(19, 26, 38, .96);
+      box-shadow: 0 8px 24px rgba(0,0,0,.28);
+    }
+    .zoom-bar button { padding: 6px 9px; font-size: 12px; }
+    #zoomPercent { min-width: 46px; text-align: center; color: #cbd5e1; font: 11px "JetBrains Mono", ui-monospace, monospace; }
+    .minimap {
+      position: absolute; z-index: 3; right: 14px; bottom: 62px; width: 250px;
+      border: 1px solid #344258; border-radius: 10px; background: rgba(19, 26, 38, .97);
+      box-shadow: 0 8px 24px rgba(0,0,0,.35); overflow: hidden;
+    }
+    .minimap[hidden] { display: none; }
+    .minimap-title { padding: 6px 9px 4px; color: var(--muted); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+    #overview { display: block; width: 250px; height: 140px; cursor: crosshair; touch-action: none; }
+    .details-tab {
+      position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 4;
+      writing-mode: vertical-rl; border-radius: 8px 0 0 8px; padding: 12px 7px;
+      background: rgba(19, 26, 38, .97); font-size: 11px;
+    }
+    .details-tab[hidden] { display: none; }
+    .panel {
+      min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr);
+      background: var(--panel); border-left: 1px solid var(--line); overflow: hidden;
+    }
+    .panel[hidden] { display: none; }
+    .panel-head { padding: 14px 15px 11px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .panel-head h2 { margin: 0; font-size: 13px; }
+    .panel-head button { font-size: 10px; padding: 6px 8px; }
+    .tabs { display: flex; gap: 5px; padding: 9px 14px 0; background: var(--panel); }
+    .tab {
+      border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent;
+      padding: 7px 8px; color: var(--muted); font-size: 11px;
+    }
+    .tab[aria-selected="true"] { border-bottom-color: var(--accent); color: var(--text); }
+    .pane-scroll { overflow: auto; min-height: 0; padding: 14px; scrollbar-color: #3a4a62 #131a26; }
+    .empty { max-width: 300px; margin: 18px auto; text-align: center; color: var(--muted); font-size: 12px; line-height: 1.6; }
+    .empty-icon { font-size: 24px; color: var(--accent); margin-bottom: 6px; }
+    .kicker { font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .detail-title { margin: 5px 0 3px; font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
+    .detail-subtitle { margin: 0 0 14px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .meta { min-width: 0; padding: 8px; border: 1px solid #273449; border-radius: 8px; background: #101722; }
+    .meta dt { margin-bottom: 4px; color: var(--muted); font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+    .meta dd { margin: 0; font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+    code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .meta code { color: #b5c9df; font-size: 9px; }
+    .section-title { margin: 18px 0 8px; color: #cbd5e1; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+    .responsibility { margin: 7px 0; border: 1px solid #29364a; border-radius: 8px; padding: 9px; background: #111925; font-size: 10px; line-height: 1.5; }
+    .responsibility strong { color: #e7effa; }
+    .why { display: block; margin-top: 4px; color: var(--muted); }
+    .flow-links { display: flex; flex-wrap: wrap; gap: 6px; }
+    .flow-links button { padding: 6px 8px; font-size: 9px; }
+    .outcome { margin-bottom: 12px; padding: 10px; border: 1px solid; border-radius: 8px; font-size: 10px; line-height: 1.5; }
+    .outcome.success { color: #bbf7d0; border-color: rgba(52,211,153,.38); background: rgba(52,211,153,.08); }
+    .outcome.rejected { color: #fecaca; border-color: rgba(248,113,113,.4); background: rgba(248,113,113,.08); }
+    .outcome.computed { color: #bfdbfe; border-color: rgba(96,165,250,.4); background: rgba(96,165,250,.08); }
+    .flow-title { margin: 0 0 5px; font-size: 17px; }
+    .flow-summary { margin: 0 0 12px; color: var(--muted); font-size: 10px; line-height: 1.55; }
+    .flow-nav {
+      position: sticky; top: -14px; z-index: 10; margin: -14px -14px 11px; padding: 9px 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 7px;
+      border-bottom: 1px solid #303d51; background: #131a26;
+    }
+    .flow-nav button { padding: 6px 8px; font-size: 10px; }
+    .flow-nav-controls { display: flex; gap: 5px; }
+    .step-count { color: #c4d0df; font: 10px "JetBrains Mono", ui-monospace, monospace; white-space: nowrap; }
+    .step-card { margin: 7px 0; border: 1px solid #29364a; border-radius: 8px; background: #101722; overflow: hidden; }
+    .step-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(56,189,248,.16); }
+    .step-button { width: 100%; display: flex; text-align: left; align-items: flex-start; gap: 9px; border: 0; border-radius: 0; padding: 10px; background: transparent; white-space: normal; }
+    .step-number { width: 20px; height: 20px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: #223149; color: #c5d4e8; font: 10px "JetBrains Mono", ui-monospace, monospace; }
+    .active .step-number { background: var(--accent); color: #06202b; }
+    .step-name { display: block; font-size: 10px; font-weight: 700; }
+    .step-note { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .step-data { padding: 0 10px 10px 39px; }
+    .step-data[hidden] { display: none; }
+    .step-data-label { margin-bottom: 4px; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+    pre.payload { max-height: 220px; overflow: auto; margin: 0; padding: 9px; border-radius: 6px; background: #090e15; color: #cbd5e1; font-size: 9px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .json-key { color: #7dd3fc; }
+    .json-string { color: #a7f3d0; }
+    .json-number { color: #fcd34d; }
+    .json-bool { color: #c4b5fd; }
+    .json-null { color: #fda4af; }
+    .flow-list button { width: 100%; margin-bottom: 7px; text-align: left; white-space: normal; }
+    .flow-list strong { display: block; font-size: 10px; }
+    .flow-list span { display: block; margin-top: 4px; color: var(--muted); font-size: 9px; line-height: 1.4; }
+    .pulse { animation: pulseNode 850ms ease-out 1; }
+    @keyframes pulseNode { 0% { box-shadow: 0 0 0 0 rgba(56,189,248,.95); } 100% { box-shadow: 0 0 0 22px rgba(56,189,248,0); } }
+    .toast {
+      position: absolute; top: 12px; right: 12px; z-index: 8; max-width: 300px; padding: 9px 12px;
+      border: 1px solid #42536b; border-radius: 8px; color: #d7e2f0; background: #152032;
+      font-size: 10px; box-shadow: 0 8px 25px rgba(0,0,0,.3);
+    }
+    .toast[hidden] { display: none; }
+    @media (max-width: 1180px) {
+      .topbar { align-items: flex-start; }
+      .controls { max-width: 720px; }
+      .controls button { padding: 7px 8px; }
+    }
+    @media (max-width: 980px) {
+      html, body { overflow: auto; min-height: 100%; }
+      .app { min-height: 100%; height: auto; grid-template-rows: auto auto; }
+      .topbar { flex-direction: column; gap: 10px; }
+      .controls { justify-content: flex-start; max-width: none; }
+      .workspace, .workspace.panel-hidden { min-height: 0; grid-template-columns: minmax(0, 1fr); grid-template-rows: 60vh minmax(420px, auto); }
+      .workspace.panel-hidden { grid-template-rows: 60vh 0; }
+      .canvas-area { min-height: 60vh; }
+      .panel { border-left: 0; border-top: 1px solid var(--line); }
+      .panel[hidden] { display: none; }
+      .minimap { width: 190px; right: 8px; bottom: 60px; }
+      #overview { width: 190px; height: 107px; }
+      .hint { max-width: calc(100% - 24px); font-size: 9px; }
+    }
+    @media (max-width: 520px) {
+      .brand { min-width: 0; }
+      .controls select { max-width: 140px; }
+      .legend { width: 148px; transform: scale(.9); transform-origin: top left; }
+      .zoom-bar { right: 8px; bottom: 8px; }
+      .minimap { bottom: 54px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>Voice Interactive News briefing</h1>
+        <p>Browser voice + FastAPI orchestration + news search, local summaries, and speech</p>
+      </div>
+      <div class="controls" aria-label="Diagram controls">
+        <select id="flowSelect" aria-label="Choose sample flow"></select>
+        <button class="primary" id="showFlow">▶ Show sample data</button>
+        <button id="clearHighlight">Clear highlight</button>
+        <button id="toggleEdges" aria-pressed="true">Edge labels: on</button>
+        <button id="fitView">Fit view</button>
+        <button id="resetLayout">Reset layout</button>
+        <button id="toggleMinimap" aria-pressed="true">Minimap</button>
+        <button id="togglePanel">⇥ Hide panel</button>
+      </div>
+    </header>
+    <section class="workspace" id="workspace">
+      <div class="canvas-area" id="canvasArea">
+        <div id="network" aria-label="Interactive architecture diagram"></div>
+        <div class="legend" aria-label="Diagram legend">
+          <p class="legend-title">Component categories</p>
+          <div class="legend-grid" id="legendGrid"></div>
+          <div class="legend-edge">
+            <div class="legend-item"><span class="line-swatch"></span>Primary request / data</div>
+            <div class="legend-item"><span class="line-swatch lookup"></span>Lookup / read</div>
+            <div class="legend-item"><span class="line-swatch local"></span>Local tool / config</div>
+          </div>
+        </div>
+        <div class="hint">Pinch or mouse wheel to zoom · two-finger swipe or drag background to pan · drag nodes · click a node for details</div>
+        <div class="minimap" id="minimap">
+          <div class="minimap-title">Overview</div>
+          <canvas id="overview" width="500" height="280" aria-label="Architecture overview minimap"></canvas>
+        </div>
+        <div class="zoom-bar" aria-label="Zoom controls">
+          <button id="zoomOut" aria-label="Zoom out">−</button>
+          <span id="zoomPercent">100%</span>
+          <button id="zoomIn" aria-label="Zoom in">+</button>
+          <button id="zoomFit" aria-label="Fit architecture">⤢ fit</button>
+        </div>
+        <button class="details-tab" id="showPanel" hidden>⇤ Details</button>
+        <div class="toast" id="toast" role="status" hidden></div>
+      </div>
+      <aside class="panel" id="panel">
+        <div class="panel-head">
+          <h2>Details</h2>
+          <button id="hidePanel">⇥ Hide panel</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Details tabs">
+          <button class="tab" id="detailsTab" role="tab" aria-selected="true">Details</button>
+          <button class="tab" id="flowTab" role="tab" aria-selected="false">Sample data flow</button>
+        </div>
+        <div class="pane-scroll" id="detailsPane" role="tabpanel" aria-labelledby="detailsTab">
+          <div class="empty">
+            <div class="empty-icon">⌖</div>
+            <strong>Explore the architecture</strong><br>
+            Select any node to inspect its source, interface, data, and responsibilities. Choose a sample flow above to walk real request and response shapes through the system.
+            <br><br>Names are repository component names; unknown limits and operational settings are marked “not specified.” Sensitive profile values and credentials are not included.
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.9/standalone/umd/vis-network.min.js"></script>
+  <script>
+    "use strict";
+    const PINCH_SENSITIVITY = 0.006;
+    const COLORS = {
+      source: "#94a3b8", edge: "#3b82f6", queue: "#22d3ee", reference: "#f59e0b",
+      processing: "#c084fc", governed: "#2dd4bf", output: "#34d399",
+      integration: "#60a5fa", destination: "#facc15", storage: "#fb7185", config: "#a3e635"
+    };
+    const categories = [
+      ["source", "Client"], ["edge", "API"], ["reference", "Lookup"],
+      ["processing", "Processing"], ["governed", "Profile data"], ["integration", "Integration"],
+      ["output", "Audio output"], ["storage", "File storage"], ["config", "Config / local tool"]
+    ];
+    document.getElementById("legendGrid").innerHTML = categories.map(([key, label]) =>
+      `<div class="legend-item"><i class="swatch" style="background:${COLORS[key]}"></i>${label}</div>`
+    ).join("");
+
+    const nodeSpecs = [
+      {
+        id: "user", x: 70, y: 450, category: "source", type: "USER INPUT", title: "User",
+        subtitle: "Clicks, typed input, or speech",
+        label: "<b>User input</b>\n<code>click · type · speak</code>\n<code>browser interaction</code>",
+        source: "static/index.html (browser UI)", technology: "Browser; Web Speech API when available",
+        protocol: "UI events; recognized transcript", format: "Text commands or button input",
+        key: "Command text / selected story numbers", scale: "One interactive browser session; no server scaling setting",
+        retention: "No server-side command history defined", auth: "No application login/auth middleware defined",
+        reads: "User speech, text, selected articles", writes: "UI actions and requests to dashboard",
+        volume: "Not specified",
+        responsibilities: [
+          ["Click, type, or speak a command in the HUD", "Gives users both voice and manual controls."]
+        ]
+      },
+      {
+        id: "browser", x: 70, y: 610, category: "source", type: "WEB CLIENT", title: "Browser HUD",
+        subtitle: "static/index.html · controls + briefing",
+        label: "<b>Browser HUD</b>\n<code>static/index.html · JSON</code>\n<code>profile · topics · stories</code>",
+        source: "static/index.html; app.py (GET /)", technology: "HTML, CSS, JavaScript; no frontend build",
+        protocol: "HTTP JSON; WAV playback", format: "Pydantic API JSON shapes; audio/wav",
+        key: "Profile ID for profile selection; article URL for deep dive",
+        scale: "One static page; deployment replicas not specified", retention: "Browser state behavior varies by UI; server profile is persisted separately",
+        auth: "No application authentication defined", reads: "API profile, stories, status, generated summary and WAV",
+        writes: "Profile/topic/settings/news/deep-dive/speech requests",
+        volume: "Not specified",
+        responsibilities: [
+          ["Calls /api/* with JSON and renders briefing and story controls", "Unifies manual and voice-driven briefing workflows."],
+          ["Uses Web Speech API (SpeechRecognition or webkitSpeechRecognition) when supported", "Enables hands-free commands; manual controls remain available."]
+        ]
+      },
+      {
+        id: "api", x: 460, y: 320, category: "edge", type: "API SERVER", title: "FastAPI",
+        subtitle: "app.py · local Uvicorn application",
+        label: "<b>FastAPI</b>\n<code>app.py · REST / JSON</code>\n<code>Uvicorn · local setup</code>",
+        source: "app.py; requirements.txt; README.md", technology: "FastAPI ≥0.110.0 (app metadata 1.0.0); Uvicorn ≥0.29.0",
+        protocol: "HTTP REST; JSON requests/responses; WAV FileResponse", format: "Pydantic models; JSON; audio/wav",
+        key: "profile_id is generated as UUID hex; article URL; topic string",
+        scale: "No replica or worker count configured", retention: "Request data is transient except profile updates",
+        auth: "No authentication/authorization middleware found", reads: "Browser requests; profile JSON; Exa/Ollama results",
+        writes: "JSON API responses; WAV response; profile JSON",
+        volume: "Exa search per tracked topic in parallel; Ollama timeout 120s; other throughput not specified",
+        responsibilities: [
+          ["Pydantic request models validate field types and bounds", "Rejects malformed requests and constrains user-controlled input."],
+          ["POST /api/news loads settings and calls _search_topic concurrently via asyncio.gather", "Queries each tracked topic within the selected publication window."],
+          ["_select_news ranks, reserves a distinct story per topic, then deduplicates similar URLs/titles", "Uses limited Top N slots to improve topic coverage and avoid repeat events."],
+          ["POST /api/news/deep-dive validates HTTP(S) URLs, caps article text, and calls Ollama", "Generates a concise spoken deep dive from selected article material only."],
+          ["GET /api/status checks Exa, Ollama, and local speech-tool availability", "Shows operational readiness before a user starts a workflow."]
+        ]
+      },
+      {
+        id: "profile", x: 460, y: 610, category: "governed", type: "LOCAL PROFILE STORE", title: "Profile JSON",
+        subtitle: "data/profile.json · configurable PROFILE_PATH",
+        label: "<b>Profile JSON</b>\n<code>data/profile.json · UTF-8</code>\n<code>profiles · topics · settings</code>",
+        source: "app.py (_load_profile_store, _save_profile_store); data/profile.json schema", technology: "Local JSON file",
+        protocol: "Filesystem read/write; process RLock", format: "{active_profile_id, profiles: {id: {name, topics, settings}}}",
+        key: "active_profile_id; generated profile IDs are UUID hex",
+        scale: "Single local file; lock is process-local; no replicas", retention: "Persistent; no TTL/rotation policy defined",
+        auth: "Host filesystem permissions; no field-level encryption defined",
+        reads: "Active profile name/topics/settings", writes: "Profile creation/activation, name, topics, preferences",
+        volume: "Not specified",
+        responsibilities: [
+          ["_load_profile_store validates JSON structure and settings ranges", "Prevents malformed saved state from silently entering workflows."],
+          ["_save_profile_store writes a temporary file, then os.replace atomically under RLock", "Avoids exposing a partially written profile file to concurrent readers."],
+          ["_clean_topic collapses whitespace; add/remove compare case-insensitively", "Keeps topic entries tidy and avoids obvious duplicate tracking."]
+        ]
+      },
+      {
+        id: "exa", x: 1200, y: 225, category: "integration", type: "EXTERNAL SEARCH API", title: "Exa",
+        subtitle: "News search + selected article content",
+        label: "<b>Exa Search</b>\n<code>Exa SDK · news category</code>\n<code>highlights / article text</code>",
+        source: "app.py (_search_topic, create_news_briefing, create_deep_dive); requirements.txt",
+        technology: "exa-py dependency (version range in requirements)", protocol: "Exa SDK API calls; API key from EXA_API_KEY",
+        format: "Results with title, URL, published_date, highlights, score; get_contents text",
+        key: "Article URL; topic query", scale: "Per-topic concurrent requests; no partition/shard setting",
+        retention: "Service-side retention not specified in repository", auth: "API key environment variable; key value excluded",
+        reads: "Topic query/date window; selected article URLs", writes: "News result metadata/highlights; retrieved text",
+        volume: "num_results=top_n per topic; deep-dive text max 6,000 chars per article",
+        responsibilities: [
+          ["Exa.search(type='fast', category='news', highlights=True) for each topic", "Finds recent news and returns concise source material."],
+          ["Exa.get_contents(urls, text={max_characters: 6000}) for selected stories", "Fetches full text only after the user requests a deep dive."]
+        ]
+      },
+      {
+        id: "ollama", x: 820, y: 400, category: "processing", type: "LOCAL MODEL SERVICE", title: "Ollama",
+        subtitle: "Local model API · configured model name",
+        label: "<b>Ollama</b>\n<code>local HTTP · /api/generate</code>\n<code>model: ‹configured›</code>",
+        source: "app.py (check_ollama, create_deep_dive); .env.example; README.md",
+        technology: "Ollama; model selected by OLLAMA_MODEL (default configured in app)",
+        protocol: "HTTP JSON; /api/tags and /api/generate", format: "JSON request with model, prompt, stream=false; response.response",
+        key: "Configured model name; no persistent job ID", scale: "Local service; replicas/GPU settings not specified",
+        retention: "Prompt/model retention not specified in repository", auth: "No Ollama authentication configured in app",
+        reads: "Selected article title, URL, text; profile display name in prompt",
+        writes: "Generated deep_dive text", volume: "HTTP timeout 120 seconds",
+        responsibilities: [
+          ["POST /api/generate receives the selected article text and a constrained summarization prompt", "Turns source content into a conversational deep dive without asking the model to browse."],
+          ["Response 'response' is checked for a non-empty string before returning", "Surfaces upstream failures rather than returning a success-shaped empty result."]
+        ]
+      },
+      {
+        id: "speech", x: 820, y: 530, category: "config", type: "LOCAL HOST TOOLCHAIN", title: "macOS speech tools",
+        subtitle: "say → AIFF → afconvert → WAV",
+        label: "<b>macOS speech tools</b>\n<code>say → AIFF</code>\n<code>afconvert → WAV</code>",
+        source: "app.py (_list_local_speech_voices, _synthesize_local_speech)",
+        technology: "macOS say and afconvert command-line tools", protocol: "Local subprocess; WAV delivered over HTTP",
+        format: "AIFF intermediate; WAVE PCM LEI16 output", key: "Selected voice name; no persistent synthesis ID",
+        scale: "Host-local; concurrency/worker limits not specified", retention: "Temporary directory removed after WAV response completes",
+        auth: "Runs with application host OS permissions", reads: "Text and optional voice from POST /api/speech",
+        writes: "Temporary AIFF and WAV; audio/wav response",
+        volume: "Text max 5,000 chars; say timeout 90s; conversion timeout 30s",
+        responsibilities: [
+          ["say synthesizes text to a temporary AIFF; afconvert writes WAVE PCM", "Provides host-native voice output when browser speech playback is requested."],
+          ["Temporary output directory is cleaned on conversion errors or after response", "Avoids retaining generated audio files beyond delivery."]
+        ]
+      },
+      {
+        id: "output", x: 70, y: 820, category: "output", type: "USER DESTINATION", title: "Briefing output",
+        subtitle: "Story cards, generated text, and audio",
+        label: "<b>Briefing output</b>\n<code>JSON stories · text</code>\n<code>WAV audio playback</code>",
+        source: "app.py API response shapes; static/index.html", technology: "Browser UI and audio playback",
+        protocol: "HTTP JSON / audio/wav", format: "{articles, covered_topics, uncovered_topics, hours, top_n, generated_at}; deep_dive",
+        key: "Article number in current response; URL for selected article", scale: "Rendered in current browser session",
+        retention: "Browser display/session; persistence not specified for generated results",
+        auth: "No application authorization defined", reads: "API response data and speech WAV",
+        writes: "User selections and playback events", volume: "Top N configurable 3–20; defaults loaded from profile",
+        responsibilities: [
+          ["Render stories and generated text; play returned WAV audio", "Delivers the briefing through visual and spoken channels."]
+        ]
+      }
+    ];
+    const nodeById = Object.fromEntries(nodeSpecs.map(n => [n.id, n]));
+    const nodeSet = new vis.DataSet(nodeSpecs.map(n => ({
+      id: n.id, label: n.label, x: n.x, y: n.y, physics: false,
+      shape: "box", margin: { top: 15, right: 17, bottom: 15, left: 17 }, widthConstraint: { minimum: 205, maximum: 225 },
+      borderWidth: n.category === "processing" ? 3 : 1.5, borderWidthSelected: n.category === "processing" ? 4 : 2.5,
+      color: { background: hexAlpha(COLORS[n.category], "20"), border: COLORS[n.category], highlight: { background: hexAlpha(COLORS[n.category], "35"), border: COLORS[n.category] }, hover: { background: hexAlpha(COLORS[n.category], "2b"), border: COLORS[n.category] } },
+      font: fullFont(COLORS[n.category]), shadow: { enabled: true, color: hexAlpha(COLORS[n.category], "55"), size: 18, x: 0, y: 0 },
+      chosen: { node: (values, id, selected, hovering) => { values.borderWidth = hovering ? 2.8 : values.borderWidth; } }
+    })));
+    const edgesSpec = [
+      { from: "user", to: "browser", label: "click / text / transcript", style: "main" },
+      { from: "browser", to: "api", label: "HTTP · JSON", style: "main" },
+      { from: "api", to: "profile", label: "read / atomic write", style: "local" },
+      { from: "api", to: "exa", label: "search / get_contents", style: "lookup" },
+      { from: "exa", to: "api", label: "results / article text", style: "lookup" },
+      { from: "api", to: "ollama", label: "HTTP POST · prompt", style: "local" },
+      { from: "ollama", to: "api", label: "generated summary", style: "local" },
+      { from: "api", to: "speech", label: "local subprocess", style: "local" },
+      { from: "speech", to: "api", label: "audio/wav", style: "main" },
+      { from: "api", to: "browser", label: "JSON / WAV response", style: "main" },
+      { from: "browser", to: "output", label: "render / play", style: "main" }
+    ];
+    const edgeSet = new vis.DataSet(edgesSpec.map((e, i) => ({
+      id: `e${i}`, from: e.from, to: e.to, label: e.label, arrows: { to: { enabled: true, scaleFactor: .65, type: "arrow" } },
+      smooth: { enabled: true, type: "cubicBezier", forceDirection: "horizontal", roundness: .32 },
+      color: { color: e.style === "lookup" ? hexAlpha(COLORS.reference, "9a") : e.style === "local" ? hexAlpha(COLORS.config, "74") : "#8391a5", highlight: "#d5e5f8", hover: "#b8c7dc", opacity: e.style === "main" ? .78 : .52 },
+      dashes: e.style === "lookup" ? [8, 5] : e.style === "local" ? [2, 6] : false,
+      width: e.style === "main" ? 1.7 : 1.2, font: { color: "#9aa9bd", size: 9, face: "Inter, system-ui, sans-serif", strokeWidth: 3, strokeColor: "#0b0f17", align: "horizontal" },
+      selectionWidth: 1, hoverWidth: 1
+    })));
+    const boundarySpecs = [
+      { id: "browser-boundary", label: "USER DEVICE · BROWSER", nodes: ["user", "browser", "output"], color: COLORS.source, style: "outer" },
+      { id: "host-boundary", label: "APPLICATION HOST · LOCAL", nodes: ["api", "profile", "ollama", "speech"], color: COLORS.processing, style: "outer" },
+      { id: "exa-boundary", label: "EXTERNAL SERVICE", nodes: ["exa"], color: COLORS.integration, style: "nested" }
+    ];
+    const headers = [
+      { x: 340, title: "CLIENT & INPUTS", sub: "browser UI · speech input" },
+      { x: 500, title: "API & ORCHESTRATION", sub: "validation · routing · selection" },
+      { x: 820, title: "LOCAL HOST SERVICES", sub: "profile file · model · speech" },
+      { x: 1140, title: "EXTERNAL SERVICES", sub: "search and article content" }
+    ];
+    let showEdgeLabels = true;
+    let currentFlow = null;
+    let activeStep = -1;
+    let playTimer = null;
+    let flowPath = null;
+    let savedPositions = Object.fromEntries(nodeSpecs.map(n => [n.id, { x: n.x, y: n.y }]));
+    let zoomPercent = 100;
+    let toastTimer;
+    const networkEl = document.getElementById("network");
+    const workspace = document.getElementById("workspace");
+    const panel = document.getElementById("panel");
+    const detailsPane = document.getElementById("detailsPane");
+    const overview = document.getElementById("overview");
+    const overviewCtx = overview.getContext("2d");
+    const minimap = document.getElementById("minimap");
+    const panelTab = document.getElementById("showPanel");
+    const network = new vis.Network(networkEl, { nodes: nodeSet, edges: edgeSet }, {
+      physics: { enabled: false }, interaction: { zoomView: false, dragView: true, dragNodes: true, hover: true, multiselect: false, navigationButtons: false, keyboard: { enabled: true } },
+      nodes: { shape: "box", chosen: true, font: fullFont("#e6edf6") },
+      edges: { smooth: { enabled: true, type: "cubicBezier", forceDirection: "horizontal" }, chosen: false },
+      layout: { improvedLayout: false }, manipulation: { enabled: false }
+    });
+    network.fit({ animation: false });
+    network.moveTo({ scale: Math.min(1.05, network.getScale()), animation: false });
+    updateZoomReadout();
+    network.on("beforeDrawing", drawBoundariesAndHeaders);
+    network.on("afterDrawing", scheduleMinimap);
+    network.on("click", params => {
+      if (params.nodes.length) showNodeDetails(params.nodes[0]);
+    });
+    network.on("dragEnd", params => {
+      if (params.nodes.length) { recomputeWorldBounds(); scheduleMinimap(); }
+    });
+    network.on("zoom", updateZoomReadout);
+    network.on("animationFinished", updateZoomReadout);
+    network.on("resize", () => { network.redraw(); scheduleMinimap(); });
+
+    function hexAlpha(hex, alpha) { return `${hex}${alpha}`; }
+    function fullFont(color) {
+      return { multi: "html", color, face: "Inter, system-ui, sans-serif", size: 14, bold: { color: "#f2f6fc", face: "Inter, system-ui, sans-serif", size: 14 }, mono: { color: "#b9c8db", face: "JetBrains Mono, ui-monospace, monospace", size: 10 }, strokeWidth: 0 };
+    }
+    function drawBoundariesAndHeaders(ctx) {
+      ctx.save();
+      for (const b of boundarySpecs) {
+        const boxes = b.nodes.map(id => network.getBoundingBox(id)).filter(Boolean);
+        if (!boxes.length) continue;
+        const pad = b.style === "outer" ? 34 : 27;
+        const left = Math.min(...boxes.map(v => v.left)) - pad;
+        const right = Math.max(...boxes.map(v => v.right)) + pad;
+        const top = Math.min(...boxes.map(v => v.top)) - pad - 10;
+        const bottom = Math.max(...boxes.map(v => v.bottom)) + pad;
+        ctx.beginPath();
+        ctx.roundRect(left, top, right - left, bottom - top, 14);
+        ctx.fillStyle = hexAlpha(b.color, "0b");
+        ctx.fill();
+        ctx.setLineDash(b.style === "outer" ? [] : [8, 6]);
+        ctx.lineWidth = b.style === "outer" ? 2.1 : 1.4;
+        ctx.strokeStyle = hexAlpha(b.color, b.style === "outer" ? "a5" : "85");
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '700 10px Inter, system-ui, sans-serif';
+        ctx.fillStyle = b.color;
+        ctx.fillText(b.label, left + 13, top + 17);
+      }
+      ctx.font = '700 11px Inter, system-ui, sans-serif';
+      ctx.fillStyle = "#d8e3f2";
+      ctx.textBaseline = "alphabetic";
+      for (let i = 0; i < headers.length; i++) {
+        const h = headers[i];
+        ctx.fillText(h.title, h.x, 24);
+        ctx.font = '10px Inter, system-ui, sans-serif';
+        ctx.fillStyle = "#8493a8";
+        ctx.fillText(h.sub, h.x, 41);
+        if (i < headers.length - 1) {
+          const start = h.x + ctx.measureText(h.title).width + 14;
+          const end = headers[i + 1].x - 14;
+          if (end > start + 12) {
+            ctx.beginPath(); ctx.moveTo(start, 28); ctx.lineTo(end, 28);
+            ctx.strokeStyle = "#536277"; ctx.lineWidth = 1; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(end - 5, 24); ctx.lineTo(end, 28); ctx.lineTo(end - 5, 32);
+            ctx.strokeStyle = "#536277"; ctx.stroke();
+          }
+        }
+        ctx.font = '700 11px Inter, system-ui, sans-serif'; ctx.fillStyle = "#d8e3f2";
+      }
+      ctx.restore();
+    }
+    function showToast(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text; el.hidden = false;
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+    }
+    function updateZoomReadout() {
+      zoomPercent = Math.round(network.getScale() * 100);
+      document.getElementById("zoomPercent").textContent = `${zoomPercent}%`;
+    }
+    function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+    function zoomAround(clientX, clientY, targetScale, animation = false) {
+      const rect = networkEl.getBoundingClientRect();
+      const domPoint = { x: clientX - rect.left, y: clientY - rect.top };
+      const canvasPoint = network.DOMtoCanvas(domPoint);
+      const scale = clamp(targetScale, .15, 2.5);
+      const viewCenter = network.DOMtoCanvas({ x: rect.width / 2, y: rect.height / 2 });
+      const dx = canvasPoint.x - viewCenter.x;
+      const dy = canvasPoint.y - viewCenter.y;
+      network.moveTo({ position: { x: canvasPoint.x - dx * (network.getScale() / scale), y: canvasPoint.y - dy * (network.getScale() / scale) }, scale, animation: animation ? { duration: 200, easingFunction: "easeInOutQuad" } : false });
+      updateZoomReadout();
+    }
+    networkEl.addEventListener("wheel", event => {
+      event.preventDefault();
+      const factor = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? networkEl.clientHeight : 1;
+      const dx = event.deltaX * factor, dy = event.deltaY * factor;
+      if (event.ctrlKey) {
+        const pinchDelta = clamp(dy, -40, 40);
+        zoomAround(event.clientX, event.clientY, network.getScale() * Math.exp(-pinchDelta * PINCH_SENSITIVITY));
+      } else if (dx !== 0 || Math.abs(dy) < 40) {
+        const pos = network.getViewPosition(), scale = network.getScale();
+        network.moveTo({ position: { x: pos.x - dx / scale, y: pos.y - dy / scale }, scale, animation: false });
+      } else {
+        const direction = dy < 0 ? 1 : -1;
+        zoomAround(event.clientX, event.clientY, network.getScale() * (direction > 0 ? 1.12 : 1 / 1.12), true);
+      }
+    }, { passive: false });
+    document.getElementById("zoomIn").addEventListener("click", () => zoomAround(networkEl.getBoundingClientRect().left + networkEl.clientWidth / 2, networkEl.getBoundingClientRect().top + networkEl.clientHeight / 2, network.getScale() * 1.25, true));
+    document.getElementById("zoomOut").addEventListener("click", () => zoomAround(networkEl.getBoundingClientRect().left + networkEl.clientWidth / 2, networkEl.getBoundingClientRect().top + networkEl.clientHeight / 2, network.getScale() / 1.25, true));
+    function fitView() {
+      network.fit({ nodes: nodeSpecs.map(n => n.id), animation: { duration: 240, easingFunction: "easeInOutQuad" } });
+      setTimeout(() => { network.moveTo({ scale: Math.min(2.5, network.getScale() * .97), animation: false }); updateZoomReadout(); }, 250);
+    }
+    document.getElementById("fitView").addEventListener("click", fitView);
+    document.getElementById("zoomFit").addEventListener("click", fitView);
+    document.getElementById("resetLayout").addEventListener("click", () => {
+      stopPlayback();
+      nodeSet.update(nodeSpecs.map(n => ({ id: n.id, x: savedPositions[n.id].x, y: savedPositions[n.id].y })));
+      network.redraw(); recomputeWorldBounds(); fitView();
+    });
+    document.getElementById("toggleEdges").addEventListener("click", event => {
+      showEdgeLabels = !showEdgeLabels;
+      edgeSet.update(edgesSpec.map((e, i) => ({ id: `e${i}`, label: showEdgeLabels ? e.label : " " })));
+      event.currentTarget.textContent = `Edge labels: ${showEdgeLabels ? "on" : "off"}`;
+      event.currentTarget.setAttribute("aria-pressed", String(showEdgeLabels));
+    });
+    document.getElementById("toggleMinimap").addEventListener("click", event => {
+      minimap.hidden = !minimap.hidden;
+      event.currentTarget.setAttribute("aria-pressed", String(!minimap.hidden));
+      if (!minimap.hidden) scheduleMinimap();
+    });
+    function setPanelOpen(open) {
+      workspace.classList.toggle("panel-hidden", !open);
+      panel.hidden = !open; panelTab.hidden = open;
+      document.getElementById("togglePanel").textContent = open ? "⇥ Hide panel" : "⇤ Show panel";
+      try { localStorage.setItem("architecture-panel-open", String(open)); } catch (_) {}
+      requestAnimationFrame(() => { network.setSize("100%", "100%"); network.redraw(); scheduleMinimap(); });
+    }
+    try {
+      const stored = localStorage.getItem("architecture-panel-open");
+      if (stored === "false") setPanelOpen(false);
+    } catch (_) {}
+    document.getElementById("togglePanel").addEventListener("click", () => setPanelOpen(panel.hidden));
+    document.getElementById("hidePanel").addEventListener("click", () => setPanelOpen(false));
+    panelTab.addEventListener("click", () => setPanelOpen(true));
+    document.getElementById("detailsTab").addEventListener("click", () => showDetailsTab());
+    document.getElementById("flowTab").addEventListener("click", () => showFlowTab());
+    function showDetailsTab() {
+      document.getElementById("detailsTab").setAttribute("aria-selected", "true");
+      document.getElementById("flowTab").setAttribute("aria-selected", "false");
+      detailsPane.innerHTML = '<div class="empty"><div class="empty-icon">⌖</div><strong>Explore the architecture</strong><br>Select any node to inspect its source, interface, data, and responsibilities. Choose a sample flow above to walk request and response shapes through the system.<br><br>Names are repository component names; unknown limits and operational settings are marked “not specified.” Sensitive profile values and credentials are not included.</div>';
+    }
+    function showFlowTab(renderContent = true) {
+      document.getElementById("detailsTab").setAttribute("aria-selected", "false");
+      document.getElementById("flowTab").setAttribute("aria-selected", "true");
+      if (!renderContent) return;
+      if (currentFlow) {
+        const step = Math.max(0, activeStep);
+        renderFlow(currentFlow);
+        setActiveStep(step, false);
+        return;
+      }
+      if (!currentFlow) {
+        detailsPane.innerHTML = `<h3 class="flow-title">Sample data flows</h3><p class="flow-summary">Choose an end-to-end story. The payloads use repository field names and schema shapes; sensitive values are placeholders.</p><div class="flow-list">${flows.map(f => `<button data-flow-choice="${f.id}"><strong>▶ ${escapeHtml(f.name)}</strong><span>${escapeHtml(f.outcomeText)}</span></button>`).join("")}</div>`;
+        detailsPane.querySelectorAll("[data-flow-choice]").forEach(button => button.addEventListener("click", () => startFlow(button.dataset.flowChoice)));
+      }
+    }
+    function showNodeDetails(id) {
+      const n = nodeById[id];
+      if (!n) return;
+      setPanelOpen(true);
+      stopPlayback();
+      currentFlow = null; activeStep = -1; flowPath = null;
+      resetHighlight();
+      showDetailsTab();
+      const fields = [
+        ["Name / template", n.title], ["Defined in", n.source], ["Technology / version", n.technology],
+        ["Interface / protocol", n.protocol], ["Data format / schema", n.format], ["Key / ID", n.key],
+        ["Scaling", n.scale], ["Retention / TTL", n.retention], ["Auth", n.auth],
+        ["Reads → writes", `${n.reads} → ${n.writes}`], ["Volume / latency", n.volume]
+      ];
+      const html = `<div class="kicker" style="color:${COLORS[n.category]}">${escapeHtml(n.type)}</div>
+        <h3 class="detail-title">${escapeHtml(n.title)}</h3><p class="detail-subtitle">${escapeHtml(n.subtitle)}</p>
+        <dl class="meta-grid">${fields.map(([label, value]) => `<div class="meta"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>
+        <h4 class="section-title">What happens here, and why</h4>
+        ${n.responsibilities.map(([what, why]) => `<div class="responsibility"><strong>WHAT</strong> · ${escapeHtml(what)}<span class="why">why → ${escapeHtml(why)}</span></div>`).join("")}
+        <h4 class="section-title">Sample flows through this component</h4><div class="flow-links">${flows.filter(f => f.steps.some(s => s.node === id)).map(f => `<button data-flow-link="${f.id}">▶ ${escapeHtml(f.name)}</button>`).join("") || '<span class="detail-subtitle">No sample flow uses this component.</span>'}</div>`;
+      detailsPane.innerHTML = html;
+      detailsPane.scrollTop = 0;
+      detailsPane.querySelectorAll("[data-flow-link]").forEach(btn => btn.addEventListener("click", () => startFlow(btn.dataset.flowLink)));
+    }
+    function escapeHtml(value) { return String(value).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch])); }
+
+    const flows = [
+      {
+        id: "briefing-happy", name: "Briefing delivered", outcome: "success",
+        outcomeText: "Completed · recent topic stories are returned to the browser for display.",
+        summary: "User requests a briefing; the API reads profile preferences, searches Exa per topic, selects/deduplicates stories, then returns the article envelope.",
+        steps: [
+          { node: "user", title: "Ask for the daily briefing", note: "The user starts a briefing from the UI or a supported voice command.", data: { action: "request news briefing" } },
+          { node: "browser", title: "Request the briefing", note: "Browser POSTs optional overrides; this example uses the request model’s fields.", data: { method: "POST", path: "/api/news", body: { hours: 24, top_n: 5 } } },
+          { node: "api", title: "Validate and resolve preferences", note: "NewsRequest allows hours 1–168 and top_n 3–20; omitted values come from active profile settings.", data: { request: { hours: 24, top_n: 5 }, effective: { hours: 24, top_n: 5 }, checks: ["EXA_API_KEY configured", "profile has at least one topic"] } },
+          { node: "profile", title: "Read active profile", note: "The saved schema carries profile identity, topics, and settings; actual values are private and omitted.", data: { active_profile_id: "‹id›", profiles: { "‹id›": { name: "‹profile name›", topics: ["‹tracked topic›"], settings: { hours: 24, top_n: 5, voice: "‹voice›" } } } } },
+          { node: "api", title: "Resolve query window and dispatch", note: "create_news_briefing computes UTC publication bounds and gathers one _search_topic call per tracked topic.", data: { hours: 24, top_n: 5, start_published_date: "‹UTC cutoff›", end_published_date: "‹UTC request time›", fanout: "one Exa search per topic" } },
+          { node: "exa", title: "Search each tracked topic", note: "Exa SDK search uses fast news results, publication bounds, highlights, and num_results=top_n.", data: { query: "Latest news about ‹tracked topic›", type: "fast", category: "news", start_published_date: "‹UTC cutoff›", end_published_date: "‹UTC request time›", num_results: 5, contents: { highlights: true }, result: { title: "‹story title›", url: "https://‹article›", published_date: "‹timestamp›", highlights: ["‹source highlight›"], score: "‹numeric relevance›" } } },
+          { node: "api", title: "Select and deduplicate", note: "_select_news sorts by score, reserves distinct topic coverage, then fills remaining slots; URL/title similarity can suppress duplicates.", data: { article: { topic: "‹tracked topic›", title: "‹story title›", url: "https://‹article›", source: "‹derived from URL›", published_date: "‹timestamp›", summary: "‹joined highlights, max 1800 chars›", number: "1" } } },
+          { node: "browser", title: "Return the briefing", note: "API response includes story array, coverage, preferences, and UTC generation time.", data: { articles: [{ topic: "‹tracked topic›", title: "‹story title›", url: "https://‹article›", source: "‹source›", published_date: "‹timestamp›", summary: "‹summary›", number: "1" }], covered_topics: ["‹tracked topic›"], uncovered_topics: [], hours: 24, top_n: 5, generated_at: "‹UTC timestamp›" } },
+          { node: "output", title: "Display story cards", note: "The browser presents returned stories and lets the user select articles for a deep dive.", data: { displayed_article_numbers: ["1"], selected_urls_for_deep_dive: [] } }
+        ]
+      },
+      {
+        id: "briefing-no-topics", name: "Briefing rejected: no topics", outcome: "rejected",
+        outcomeText: "Rejected · POST /api/news returns HTTP 400 with “Add at least one topic before requesting a briefing.” No Exa call occurs.",
+        summary: "Demonstrates the concrete empty-profile guard before any external news query.",
+        steps: [
+          { node: "user", title: "Start a briefing", note: "The user asks for a briefing while the active profile has no topics.", data: { action: "request news briefing" } },
+          { node: "browser", title: "Request a briefing", note: "A valid request body alone is not sufficient when the active profile has no tracked topics.", data: { method: "POST", path: "/api/news", body: { hours: 24, top_n: 5 } } },
+          { node: "api", title: "Read profile and reject", note: "create_news_briefing checks profile['topics'] before constructing Exa or scheduling searches.", data: { profile: { topics: [] }, status: 400, detail: "Add at least one topic before requesting a briefing." } },
+          { node: "browser", title: "Show the API error", note: "Request ends at the API validation branch; no external request or story output is created.", data: { response: { detail: "Add at least one topic before requesting a briefing." }, exa_search_calls: 0 } }
+        ]
+      },
+      {
+        id: "duplicate-filter", name: "Duplicate story filtered", outcome: "computed",
+        outcomeText: "Filtered · URL/title matches are treated as the same event, so only one candidate is retained in the selected story list.",
+        summary: "Shows the repository’s URL normalization, title normalization, similarity threshold, and unique article output. Candidate text is illustrative and contains no real news claim.",
+        steps: [
+          { node: "user", title: "Request stories for tracked topics", note: "The user requests a briefing that can contain overlapping results.", data: { action: "request news briefing" } },
+          { node: "browser", title: "Send briefing request", note: "The browser submits the normal news request to the API.", data: { method: "POST", path: "/api/news", body: { hours: 24, top_n: 5 } } },
+          { node: "api", title: "Dispatch topic searches", note: "The API reads tracked topics and gathers candidate results before selection.", data: { operation: "asyncio.gather(_search_topic for each topic)", candidate_count: "varies by provider response" } },
+          { node: "exa", title: "Return overlapping candidates", note: "Searches may return the same story URL or similar headline under multiple topics.", data: { candidates: [{ topic: "‹topic A›", title: "‹sample headline about event›", url: "https://‹publisher›/story", score: 0.91 }, { topic: "‹topic B›", title: "‹similar sample headline about event›", url: "https://‹publisher›/story/", score: 0.84 }] } },
+          { node: "api", title: "Normalize URL and title", note: "_same_news_event removes trailing URL slash/case differences, then checks normalized title similarity and shared words.", data: { url_key: "‹hostname + normalized path›", title_normalization: "casefold · non-alphanumeric → spaces", exact_or_similar_title_ratio: "≥ 0.88 triggers match", shared_word_rule: "at least 4 shared words and ≥ 0.82 of shorter title" } },
+          { node: "api", title: "Keep one representative candidate", note: "Score-descending selection excludes candidates matching a selected event, then assigns sequential article numbers.", data: { selected: [{ topic: "‹topic A›", title: "‹sample headline about event›", number: "1" }], duplicate_candidates_omitted: 1 } },
+          { node: "output", title: "Return unique stories", note: "Only selected articles appear in the response; covered and uncovered topics are derived from selected records.", data: { articles: [{ topic: "‹topic A›", number: "1" }], covered_topics: ["‹topic A›"], uncovered_topics: ["‹topic B›"] } }
+        ]
+      },
+      {
+        id: "deep-dive", name: "Selected article deep dive", outcome: "success",
+        outcomeText: "Completed · Exa article text is passed to the configured Ollama model; non-empty generated text is returned to the browser.",
+        summary: "Article content is fetched only for selected URLs, limited to 6,000 characters per article, then sent to Ollama with stream=false.",
+        steps: [
+          { node: "user", title: "Choose a story for a deep dive", note: "The user selects one or more returned article URLs.", data: { action: "select article(s)", url: "https://‹article URL›" } },
+          { node: "browser", title: "Select an article", note: "Browser sends selected story URL(s); request model accepts 1–20 URLs.", data: { method: "POST", path: "/api/news/deep-dive", body: { urls: ["https://‹article URL›"] } } },
+          { node: "api", title: "Deduplicate and validate URL", note: "Repeated URL strings are removed; every URL must have HTTP(S) scheme and a network location.", data: { normalized_urls: ["https://‹article URL›"], validation: "scheme ∈ {http, https}; netloc present", invalid_url_result: "HTTP 422" } },
+          { node: "exa", title: "Fetch selected article text", note: "get_contents requests text with max_characters=6000; returned text is truncated to that bound.", data: { call: "get_contents(urls, text={max_characters: 6000})", result: [{ title: "‹article title›", url: "https://‹article URL›", text: "‹article source text, up to 6000 characters›" }] } },
+          { node: "api", title: "Build constrained generation request", note: "Prompt asks for separate conversational summaries, says to use supplied text only, and treats article text as untrusted source material.", data: { model: "‹OLLAMA_MODEL›", stream: false, prompt_includes: ["selected article title, URL, and text", "summarize separately", "do not invent details", "do not read URLs aloud", "article text is untrusted source material"] } },
+          { node: "ollama", title: "Generate local summary", note: "HTTP POST to configured Ollama /api/generate endpoint; client timeout is 120 seconds.", data: { request: { model: "‹OLLAMA_MODEL›", prompt: "‹constructed prompt›", stream: false }, response: { response: "‹generated conversational deep dive›" } } },
+          { node: "browser", title: "Return generated deep dive", note: "Empty or malformed model response is rejected with HTTP 502 rather than returned as successful content.", data: { deep_dive: "‹non-empty generated summary›", articles: [{ title: "‹article title›", url: "https://‹article URL›", text: "‹article text›" }], generated_at: "‹UTC timestamp›" } },
+          { node: "output", title: "Render and optionally speak", note: "Browser displays deep-dive text; speech can be requested separately via /api/speech.", data: { displayed: { deep_dive: "‹generated summary›" }, optional_speech_request: { text: "‹generated summary›", voice: "‹optional voice›" } } }
+        ]
+      },
+      {
+        id: "bad-url", name: "Invalid article URL rejected", outcome: "rejected",
+        outcomeText: "Rejected · POST /api/news/deep-dive returns HTTP 422 before Exa retrieval when any supplied URL is not valid HTTP(S) with a host.",
+        summary: "The error branch deliberately stops before sending malformed input to the content provider.",
+        steps: [
+          { node: "user", title: "Choose an invalid article URL", note: "An invalid selected URL is sent to the deep-dive endpoint.", data: { action: "request article deep dive", selected_url: "‹not-an-http-url›" } },
+          { node: "browser", title: "Submit selected URL", note: "The API accepts a list of URL strings; a submitted value fails the required scheme/host check.", data: { method: "POST", path: "/api/news/deep-dive", body: { urls: ["‹not-an-http-url›"] } } },
+          { node: "api", title: "Validate all URL entries", note: "urlparse must yield http or https plus a non-empty netloc; failure raises 422.", data: { parsed: { scheme: "‹not http/https›", netloc: "" }, status: 422, detail: "Every article URL must be a valid HTTP or HTTPS URL." } },
+          { node: "browser", title: "Surface rejection", note: "No get_contents call and no Ollama generation occur on this branch.", data: { response: { detail: "Every article URL must be a valid HTTP or HTTPS URL." }, exa_get_contents_calls: 0, ollama_generate_calls: 0 } }
+        ]
+      },
+      {
+        id: "speech-wav", name: "Speech delivered as WAV", outcome: "success",
+        outcomeText: "Completed · local macOS speech synthesis is converted to WAV and returned as audio/wav; temporary files are cleaned after delivery.",
+        summary: "The server validates text and optional voice, uses native host tools, and streams the resulting file to browser playback.",
+        steps: [
+          { node: "user", title: "Ask to hear the briefing", note: "The user selects spoken playback or initiates a voice-driven interaction.", data: { action: "request speech for briefing text" } },
+          { node: "browser", title: "Request spoken output", note: "SpeechRequest allows text up to 5,000 characters and an optional voice string.", data: { method: "POST", path: "/api/speech", body: { text: "‹briefing text›", voice: "‹optional installed voice›" } } },
+          { node: "api", title: "Validate speech input and voice", note: "Blank stripped text is rejected; when a voice is supplied it must match a voice listed by macOS say.", data: { checks: ["non-blank text", "text length ≤ 5000", "requested voice is installed when provided"], errors: { blank: 422, unavailable_voice: 422, missing_tools: 503 } } },
+          { node: "speech", title: "Synthesize and convert locally", note: "say writes temporary AIFF; afconvert uses WAVE and LEI16. Tool timeouts are 90s and 30s.", data: { commands: ["say [-v ‹voice›] -o ‹temporary AIFF› ‹text›", "afconvert -f WAVE -d LEI16 ‹AIFF› ‹WAV›"], output: "temporary speech.wav" } },
+          { node: "api", title: "Return audio file response", note: "FileResponse uses media_type audio/wav and a background cleanup task removes the temporary directory.", data: { response: { media_type: "audio/wav", filename: "jarvis-speech.wav" }, cleanup: "remove temporary directory after response" } },
+          { node: "browser", title: "Play returned audio", note: "Browser receives WAV bytes for playback; macOS voice recognition is separate and browser-dependent.", data: { received: "audio/wav", playback: "browser audio element" } },
+          { node: "output", title: "Hear the briefing", note: "Speech is delivered as an audio channel alongside on-screen article and summary content.", data: { output: "WAV audio playback", source_text: "‹requested speech text›" } }
+        ]
+      },
+      {
+        id: "profile-save", name: "Profile settings saved", outcome: "success",
+        outcomeText: "Completed · preferences are validated, serialized to a temporary file, then atomically replaced at the configured profile path.",
+        summary: "Shows local profile persistence for settings without exposing profile names, topic values, or personal content.",
+        steps: [
+          { node: "user", title: "Change briefing preferences", note: "The user edits hours, story count, or speech voice in the browser UI.", data: { action: "update profile settings" } },
+          { node: "browser", title: "Save briefing settings", note: "Browser sends settings JSON; bounds are hours 1–168 and top_n 3–20.", data: { method: "PUT", path: "/api/profile/settings", body: { hours: 24, top_n: 5, voice: "‹optional voice›" } } },
+          { node: "api", title: "Pydantic validates and updates active record", note: "ProfileSettingsRequest applies numeric ranges and voice max length before replacing settings.", data: { settings: { hours: 24, top_n: 5, voice: "‹voice›" }, validation: { hours: "1..168", top_n: "3..20", voice: "max 100 chars" } } },
+          { node: "profile", title: "Atomic JSON write", note: "_save_profile_store holds RLock, writes UTF-8 JSON to a temporary sibling file, then os.replace commits it.", data: { file: "‹PROFILE_PATH; default data/profile.json›", encoding: "UTF-8 JSON", write_steps: ["create parent directory if needed", "write temporary file", "os.replace(temp, target)"], ttl: "none specified" } },
+          { node: "browser", title: "Return active profile", note: "Updated active profile JSON is returned to refresh the UI.", data: { response: { id: "‹id›", name: "‹profile name›", topics: ["‹topic›"], settings: { hours: 24, top_n: 5, voice: "‹voice›" } } } }
+        ]
+      }
+    ];
+    flows.forEach(f => {
+      const option = document.createElement("option"); option.value = f.id; option.textContent = f.name;
+      document.getElementById("flowSelect").append(option);
+    });
+    document.getElementById("showFlow").addEventListener("click", () => startFlow(document.getElementById("flowSelect").value));
+    document.getElementById("clearHighlight").addEventListener("click", clearFlowHighlight);
+    document.getElementById("flowSelect").addEventListener("change", event => startFlow(event.target.value));
+
+    function startFlow(id, step = 0) {
+      const flow = flows.find(f => f.id === id);
+      if (!flow) return;
+      setPanelOpen(true);
+      stopPlayback();
+      currentFlow = flow; activeStep = -1;
+      flowPath = new Set(flow.steps.map(s => s.node));
+      applyHighlight(flow);
+      showFlowTab(false);
+      document.getElementById("flowSelect").value = id;
+      renderFlow(flow);
+      setActiveStep(clamp(Number(step) || 0, 0, flow.steps.length - 1), true);
+    }
+    function applyHighlight(flow) {
+      const used = new Set(flow.steps.map(s => s.node));
+      nodeSet.update(nodeSpecs.map(n => {
+        const dim = !used.has(n.id);
+        const col = dim ? "#344154" : COLORS[n.category];
+        return { id: n.id, color: { background: hexAlpha(col, dim ? "10" : "20"), border: col, highlight: { background: hexAlpha(col, "35"), border: col }, hover: { background: hexAlpha(col, "2b"), border: col } }, font: fullFont(dim ? "#78869a" : COLORS[n.category]), shadow: { enabled: !dim, color: hexAlpha(col, "55"), size: dim ? 0 : 18, x: 0, y: 0 }, borderWidth: n.category === "processing" ? 3 : 1.5 };
+      }));
+      const edgeActive = new Set();
+      for (let i = 0; i < flow.steps.length - 1; i++) {
+        const pair = [flow.steps[i].node, flow.steps[i + 1].node];
+        const found = edgesSpec.findIndex(e => e.from === pair[0] && e.to === pair[1]);
+        if (found >= 0) edgeActive.add(`e${found}`);
+        else {
+          const back = edgesSpec.findIndex(e => e.from === pair[1] && e.to === pair[0]);
+          if (back >= 0) edgeActive.add(`e${back}`);
+        }
+      }
+      edgeSet.update(edgesSpec.map((e, i) => {
+        const active = edgeActive.has(`e${i}`);
+        return { id: `e${i}`, color: { color: active ? "#b4c5da" : "#263244", highlight: "#e2efff", hover: "#c8d7e8", opacity: active ? .9 : .12 }, width: active ? 2.2 : 1, font: { color: active ? "#c4d1e2" : "#536176", size: 9, face: "Inter, system-ui, sans-serif", strokeWidth: 3, strokeColor: "#0b0f17" } };
+      }));
+      network.redraw(); scheduleMinimap();
+    }
+    function resetHighlight() {
+      nodeSet.update(nodeSpecs.map(n => ({ id: n.id, color: { background: hexAlpha(COLORS[n.category], "20"), border: COLORS[n.category], highlight: { background: hexAlpha(COLORS[n.category], "35"), border: COLORS[n.category] }, hover: { background: hexAlpha(COLORS[n.category], "2b"), border: COLORS[n.category] } }, font: fullFont(COLORS[n.category]), shadow: { enabled: true, color: hexAlpha(COLORS[n.category], "55"), size: 18, x: 0, y: 0 }, borderWidth: n.category === "processing" ? 3 : 1.5 })));
+      edgeSet.update(edgesSpec.map((e, i) => ({ id: `e${i}`, color: { color: e.style === "lookup" ? hexAlpha(COLORS.reference, "9a") : e.style === "local" ? hexAlpha(COLORS.config, "74") : "#8391a5", highlight: "#d5e5f8", hover: "#b8c7dc", opacity: e.style === "main" ? .78 : .52 }, width: e.style === "main" ? 1.7 : 1.2, font: { color: "#9aa9bd", size: 9, face: "Inter, system-ui, sans-serif", strokeWidth: 3, strokeColor: "#0b0f17" } })));
+      network.redraw(); scheduleMinimap();
+    }
+    function clearFlowHighlight() {
+      stopPlayback(); currentFlow = null; activeStep = -1; flowPath = null;
+      resetHighlight(); showDetailsTab();
+    }
+    function renderFlow(flow) {
+      const klass = flow.outcome === "success" ? "success" : flow.outcome === "rejected" ? "rejected" : "computed";
+      detailsPane.innerHTML = `<div class="outcome ${klass}"><strong>${escapeHtml(flow.outcomeText.split(" · ")[0])}</strong><br>${escapeHtml(flow.outcomeText.split(" · ").slice(1).join(" · "))}</div>
+        <h3 class="flow-title">${escapeHtml(flow.name)}</h3><p class="flow-summary">${escapeHtml(flow.summary)}</p>
+        <div class="flow-nav" id="flowNav"><div class="flow-nav-controls"><button id="prevStep">◀ Prev</button><button id="playStep">▶ Play</button><button id="nextStep">Next ▶</button></div><span class="step-count" id="stepCount">1 / ${flow.steps.length}</span></div>
+        <div id="stepList">${flow.steps.map((s, i) => `<article class="step-card" id="step-${i}">
+          <button class="step-button" data-step="${i}"><span class="step-number">${i + 1}</span><span><span class="step-name">${escapeHtml(s.title)}</span><span class="step-note">${escapeHtml(s.note)}</span></span></button>
+          <div class="step-data" hidden><div class="step-data-label">Data at this step</div><pre class="payload">${syntaxJson(s.data)}</pre></div>
+        </article>`).join("")}</div>`;
+      detailsPane.querySelectorAll("[data-step]").forEach(btn => btn.addEventListener("click", () => setActiveStep(Number(btn.dataset.step), true)));
+      document.getElementById("prevStep").addEventListener("click", () => setActiveStep(activeStep - 1, true));
+      document.getElementById("nextStep").addEventListener("click", () => setActiveStep(activeStep + 1, true));
+      document.getElementById("playStep").addEventListener("click", togglePlayback);
+    }
+    function syntaxJson(value) {
+      let raw;
+      try { raw = JSON.stringify(value, null, 2); } catch { raw = String(value); }
+      if (raw === undefined) raw = String(value);
+      const escaped = escapeHtml(raw.replaceAll("‹id›", "<id>"));
+      return escaped.replace(/("(?:\\.|[^"\\])*"(?=\s*:)|"(?:\\.|[^"\\])*"|\b(?:true|false)\b|\bnull\b|-?\b\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, (token, offset) => {
+        let cls = "json-string";
+        if (token.startsWith('"') && /^\s*:/.test(escaped.slice(offset + token.length))) cls = "json-key";
+        else if (token === "true" || token === "false") cls = "json-bool";
+        else if (token === "null") cls = "json-null";
+        else if (!token.startsWith('"')) cls = "json-number";
+        return `<span class="${cls}">${token}</span>`;
+      });
+    }
+    function setActiveStep(index, moveView) {
+      if (!currentFlow) return;
+      index = clamp(index, 0, currentFlow.steps.length - 1);
+      activeStep = index;
+      currentFlow.steps.forEach((s, i) => {
+        const card = document.getElementById(`step-${i}`);
+        card.classList.toggle("active", i === index);
+        card.querySelector(".step-data").hidden = i !== index;
+      });
+      document.getElementById("stepCount").textContent = `${index + 1} / ${currentFlow.steps.length}`;
+      document.getElementById("prevStep").disabled = index === 0;
+      document.getElementById("nextStep").disabled = index === currentFlow.steps.length - 1;
+      document.getElementById("playStep").textContent = playTimer ? "⏸ Pause" : "▶ Play";
+      const nodeId = currentFlow.steps[index].node;
+      const p = network.getPositions([nodeId])[nodeId];
+      network.focus(nodeId, { scale: Math.max(.65, Math.min(1.1, network.getScale())), animation: { duration: 450, easingFunction: "easeInOutQuad" } });
+      const canvasNode = network.body.nodes[nodeId];
+      if (canvasNode && canvasNode.options) {
+        const previous = canvasNode.options.shadow;
+        canvasNode.options.shadow = { enabled: true, color: "#38bdf8", size: 30, x: 0, y: 0 };
+        network.redraw();
+        setTimeout(() => { if (canvasNode.options) canvasNode.options.shadow = previous; network.redraw(); }, 850);
+      }
+      if (moveView) {
+        requestAnimationFrame(() => {
+          const card = document.getElementById(`step-${index}`);
+          const nav = document.getElementById("flowNav");
+          if (!card || !nav) return;
+          const cardRect = card.getBoundingClientRect();
+          const navRect = nav.getBoundingClientRect();
+          const paneRect = detailsPane.getBoundingClientRect();
+          if (cardRect.top < navRect.bottom || cardRect.bottom > paneRect.bottom) {
+            detailsPane.scrollBy({ top: cardRect.top - navRect.bottom - 8, behavior: "smooth" });
+          }
+        });
+      }
+    }
+    function togglePlayback() {
+      if (playTimer) { stopPlayback(); return; }
+      if (activeStep >= currentFlow.steps.length - 1) setActiveStep(0, true);
+      document.getElementById("playStep").textContent = "⏸ Pause";
+      playTimer = setInterval(() => {
+        if (!currentFlow || activeStep >= currentFlow.steps.length - 1) { stopPlayback(); return; }
+        setActiveStep(activeStep + 1, true);
+      }, 2200);
+    }
+    function stopPlayback() {
+      if (playTimer) { clearInterval(playTimer); playTimer = null; }
+      const button = document.getElementById("playStep");
+      if (button) button.textContent = "▶ Play";
+    }
+
+    let worldBounds = { minX: -100, maxX: 1000, minY: -100, maxY: 800 };
+    function recomputeWorldBounds() {
+      const positions = network.getPositions(nodeSpecs.map(n => n.id));
+      const boxes = nodeSpecs.map(n => network.getBoundingBox(n.id)).filter(Boolean);
+      const pad = 55;
+      const minX = Math.min(...boxes.map(b => b.left), ...headers.map(h => h.x)) - pad;
+      const maxX = Math.max(...boxes.map(b => b.right), ...headers.map(h => h.x + 220)) + pad;
+      const minY = Math.min(...boxes.map(b => b.top), 8) - pad;
+      const maxY = Math.max(...boxes.map(b => b.bottom)) + pad;
+      if (Number.isFinite(minX + maxX + minY + maxY)) worldBounds = { minX, maxX, minY, maxY };
+    }
+    let minimapRAF = 0;
+    function scheduleMinimap() {
+      if (minimap.hidden || minimapRAF) return;
+      minimapRAF = requestAnimationFrame(() => { minimapRAF = 0; drawMinimap(); });
+    }
+    function drawMinimap() {
+      recomputeWorldBounds();
+      const w = overview.width, h = overview.height;
+      const ctx = overviewCtx;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0a1019"; ctx.fillRect(0, 0, w, h);
+      const margin = 18, bw = worldBounds.maxX - worldBounds.minX, bh = worldBounds.maxY - worldBounds.minY;
+      const s = Math.min((w - margin * 2) / bw, (h - margin * 2) / bh);
+      const ox = (w - bw * s) / 2 - worldBounds.minX * s;
+      const oy = (h - bh * s) / 2 - worldBounds.minY * s;
+      const px = x => ox + x * s, py = y => oy + y * s;
+      for (const e of edgesSpec) {
+        const a = network.getPositions([e.from])[e.from], b = network.getPositions([e.to])[e.to];
+        ctx.beginPath(); ctx.moveTo(px(a.x), py(a.y)); ctx.lineTo(px(b.x), py(b.y));
+        const used = !flowPath || (flowPath.has(e.from) && flowPath.has(e.to));
+        ctx.strokeStyle = used ? "rgba(161,177,197,.35)" : "rgba(89,102,120,.09)";
+        ctx.lineWidth = 1.2; ctx.stroke();
+      }
+      for (const boundary of boundarySpecs) {
+        const boxes = boundary.nodes.map(id => network.getBoundingBox(id));
+        const left = Math.min(...boxes.map(b => b.left)) - 25, right = Math.max(...boxes.map(b => b.right)) + 25;
+        const top = Math.min(...boxes.map(b => b.top)) - 28, bottom = Math.max(...boxes.map(b => b.bottom)) + 25;
+        ctx.fillStyle = hexAlpha(boundary.color, "12"); ctx.strokeStyle = hexAlpha(boundary.color, "a0");
+        ctx.lineWidth = 2; ctx.setLineDash(boundary.style === "outer" ? [] : [5, 4]);
+        ctx.strokeRect(px(left), py(top), (right - left) * s, (bottom - top) * s);
+        ctx.fillRect(px(left), py(top), (right - left) * s, (bottom - top) * s);
+      }
+      ctx.setLineDash([]);
+      for (const n of nodeSpecs) {
+        const p = network.getPositions([n.id])[n.id];
+        const bb = network.getBoundingBox(n.id);
+        const active = !flowPath || flowPath.has(n.id);
+        ctx.globalAlpha = active ? 1 : .22;
+        ctx.fillStyle = COLORS[n.category];
+        ctx.fillRect(px(bb.left), py(bb.top), Math.max(4, (bb.right - bb.left) * s), Math.max(3, (bb.bottom - bb.top) * s));
+      }
+      ctx.globalAlpha = 1;
+      const rect = networkEl.getBoundingClientRect();
+      const corners = [
+        network.DOMtoCanvas({ x: 0, y: 0 }), network.DOMtoCanvas({ x: rect.width, y: rect.height })
+      ];
+      const vx = Math.min(corners[0].x, corners[1].x), vy = Math.min(corners[0].y, corners[1].y);
+      const vw = Math.abs(corners[1].x - corners[0].x), vh = Math.abs(corners[1].y - corners[0].y);
+      ctx.strokeStyle = "#22d3ee"; ctx.lineWidth = 3; ctx.strokeRect(px(vx), py(vy), vw * s, vh * s);
+    }
+    let minimapPointer = null;
+    function minimapToCanvas(event) {
+      const rect = overview.getBoundingClientRect();
+      const x = (event.clientX - rect.left) * overview.width / rect.width;
+      const y = (event.clientY - rect.top) * overview.height / rect.height;
+      const margin = 18, bw = worldBounds.maxX - worldBounds.minX, bh = worldBounds.maxY - worldBounds.minY;
+      const s = Math.min((overview.width - margin * 2) / bw, (overview.height - margin * 2) / bh);
+      const ox = (overview.width - bw * s) / 2 - worldBounds.minX * s;
+      const oy = (overview.height - bh * s) / 2 - worldBounds.minY * s;
+      return { x: (x - ox) / s, y: (y - oy) / s };
+    }
+    overview.addEventListener("pointerdown", event => {
+      event.preventDefault(); overview.setPointerCapture(event.pointerId); minimapPointer = event.pointerId;
+      const p = minimapToCanvas(event); network.moveTo({ position: p, animation: false });
+    });
+    overview.addEventListener("pointermove", event => {
+      if (minimapPointer !== event.pointerId) return;
+      const p = minimapToCanvas(event); network.moveTo({ position: p, animation: false });
+    });
+    overview.addEventListener("pointerup", event => { if (minimapPointer === event.pointerId) minimapPointer = null; });
+    overview.addEventListener("wheel", event => {
+      event.preventDefault(); event.stopPropagation();
+      const delta = clamp(event.deltaY, -40, 40);
+      const rect = networkEl.getBoundingClientRect();
+      zoomAround(rect.left + rect.width / 2, rect.top + rect.height / 2, network.getScale() * Math.exp(-delta * PINCH_SENSITIVITY));
+    }, { passive: false });
+
+    function openDeepLink() {
+      const hash = location.hash.slice(1);
+      const params = new URLSearchParams(hash);
+      if (params.has("trace")) {
+        const flow = flows.find(f => f.id === params.get("trace"));
+        if (!flow) { showToast(`Unknown flow id: ${params.get("trace")}`); return; }
+        const step = Number(params.get("step") || 1) - 1;
+        startFlow(flow.id, Number.isFinite(step) ? step : 0);
+      } else if (params.has("node")) {
+        const id = params.get("node");
+        if (nodeById[id]) showNodeDetails(id);
+        else showToast(`Unknown node id: ${id}`);
+      }
+    }
+    window.addEventListener("hashchange", openDeepLink);
+    requestAnimationFrame(() => { network.setSize("100%", "100%"); network.redraw(); scheduleMinimap(); openDeepLink(); });
+  </script>
+</body>
+</html>
