@@ -100,7 +100,22 @@
     .system-detail { margin-top: 5px; overflow-wrap: anywhere; color: #627a81; font-size: 9px; line-height: 1.45; }
     .speaker-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .speaker-controls .button { min-height: 28px; }
-    .briefing-panel { min-height: 0; padding: 15px 20px; }
+    .briefing-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(250px, .75fr);
+      gap: 16px;
+      margin-top: 20px;
+      align-items: stretch;
+    }
+    .briefing-panel { min-width: 0; min-height: 0; padding: 15px 20px; }
+    .commands-panel { min-width: 0; align-self: start; padding: 15px; }
+    .commands-panel .panel-heading { margin-bottom: 12px; }
+    .commands-kicker { margin: 0 0 5px; color: var(--muted); font-size: 9px; line-height: 1.45; }
+    .command-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .command-item { display: grid; gap: 3px; padding: 8px 9px; border: 1px solid rgba(76, 207, 239, .13); background: rgba(5, 12, 17, .4); }
+    .command-phrase { color: var(--cyan-bright); font-size: 10px; line-height: 1.4; }
+    .command-description { color: var(--muted); font-size: 9px; line-height: 1.4; }
+    .commands-note { margin: 10px 0 0; color: #71868e; font-size: 9px; line-height: 1.45; }
     .panel-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .panel-title { margin: 0; color: #b9d4d8; font-size: 10px; font-weight: 650; letter-spacing: .2em; text-transform: uppercase; }
     .live-tag { color: #5ce8ad; font-size: 9px; letter-spacing: .16em; }
@@ -146,6 +161,10 @@
       min-height: 0; max-height: 90px; overflow-y: auto; max-width: 900px; margin: 0 auto 12px; color: #bfd0d3; font-size: 12px; line-height: 1.55; text-align: center;
     }
     .briefing-copy.placeholder { color: #70858b; }
+    .briefing-copy.is-reading { max-height: min(42vh, 360px); min-height: 110px; padding: 10px; border: 1px solid rgba(76, 207, 239, .2); background: rgba(3, 9, 13, .58); text-align: left; }
+    .reading-block { display: block; padding: 8px 10px; border-left: 3px solid transparent; border-radius: 3px; color: #8fa6ad; transition: color .2s, background .2s, border-color .2s; }
+    .reading-block + .reading-block { margin-top: 5px; }
+    .reading-block.is-active { border-left-color: var(--cyan); background: rgba(98, 228, 244, .16); color: #f2fdff; box-shadow: 0 0 18px rgba(98, 228, 244, .12); }
     .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
     .briefing-playback { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
     .button {
@@ -170,7 +189,7 @@
     .voice-actions #playbackButton { grid-column: 1 / -1; }
     .profile-controls { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(220px, 1fr) auto; gap: 12px; align-items: end; margin-top: 14px; }
     .profile-name-form { display: block; }
-    .profile-name-row, #profileForm { display: flex; gap: 7px; }
+    .profile-name-row { display: flex; gap: 7px; }
     .topics-subheading { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
     .topics-subheading h3 { margin: 0; color: #b9d4d8; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; }
     .profile-divider { border: 0; border-top: 1px solid rgba(76, 207, 239, .1); margin: 16px 0 0; }
@@ -178,9 +197,12 @@
     .profile-settings-heading { margin: 0; color: #b9d4d8; font-size: 10px; letter-spacing: .15em; text-transform: uppercase; }
     .new-profile-button { white-space: nowrap; }
     .voice-filter-row { display: grid; grid-template-columns: minmax(0, .75fr) minmax(0, 1fr); gap: 8px; }
-    .profile-dialog { width: min(400px, calc(100% - 32px)); padding: 22px; border: 1px solid var(--line); background: #0b151d; color: var(--text); box-shadow: 0 22px 80px #000b; }
+    .profile-dialog { width: min(460px, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto; padding: 24px; border: 1px solid var(--line); background: #0b151d; color: var(--text); box-shadow: 0 22px 80px #000b; }
     .profile-dialog::backdrop { background: rgba(0, 0, 0, .72); backdrop-filter: blur(4px); }
     .profile-dialog h2 { margin: 0 0 16px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; }
+    #profileForm { display: block; }
+    #profileNameInput { width: 100%; }
+    .profile-dialog .system-detail { margin-top: 10px; font-size: 11px; line-height: 1.5; }
     .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
     .headline-category { margin-top: 17px; }
     .headline-category-title { padding-bottom: 8px; border-bottom: 1px solid rgba(76, 207, 239, .16); color: var(--cyan); font-size: 10px; letter-spacing: .17em; text-transform: uppercase; }
@@ -242,8 +264,12 @@
     @keyframes voiceWorkPulse { to { transform: scale(1.12); box-shadow: 0 0 52px rgba(161, 91, 255, .9), inset 0 0 36px rgba(161, 91, 255, .56); } }
     @keyframes webIdle { to { transform: scale(1.055); box-shadow: 0 0 36px rgba(55, 155, 255, .72), inset 0 0 32px rgba(55, 155, 255, .38); } }
     @keyframes voiceIdle { to { transform: scale(1.065); box-shadow: 0 0 38px rgba(161, 91, 255, .72), inset 0 0 34px rgba(161, 91, 255, .4); } }
-    @media (max-width: 900px) { .briefing-panel, .articles { min-height: 0; } }
+    @media (max-width: 900px) {
+      .briefing-row { grid-template-columns: minmax(0, 1.2fr) minmax(230px, .8fr); }
+      .briefing-panel, .articles { min-height: 0; }
+    }
     @media (max-width: 820px) {
+      .briefing-row { grid-template-columns: 1fr; }
       .management-grid, .bottom-grid { grid-template-columns: 1fr; }
       .profile-controls { grid-template-columns: 1fr 1fr; }
       .profile-controls > .new-profile-button { justify-self: start; }
@@ -277,34 +303,45 @@
           <div class="brand-subtitle">News Briefing System</div>
         </div>
       </div>
-      <div class="system-state"><span class="state-light"></span><span id="systemState">Systems online</span></div>
+      <div class="system-state"><span class="state-light warning"></span><span id="systemState">Checking app</span></div>
     </header>
 
     <main>
       <div class="eyebrow">Your personal news briefing // <span id="today"></span></div>
       <h1 class="welcome"><span id="greeting">Hello</span>, <span id="welcomeName">Vamsi Krishna</span>.</h1>
       <p class="intro">Your world, distilled. Ask for your briefing or tune the signals you follow.</p>
-      <p></p>
-      <section class="panel briefing-panel mode-web" id="briefingPanel" data-mode="web" data-state="ready" aria-labelledby="briefingHeading">
-        <div class="panel-heading">
-          <h2 class="panel-title" id="briefingHeading">Daily News briefing</h2>
-          <span class="live-tag" id="modeTag">Web interactive mode</span>
-        </div>
-        <div class="reactor-stage">
-          <div class="reactor mode-web" id="reactor" aria-hidden="true"><div class="reactor-core"></div></div>
-          <div class="reactor-label" id="reactorLabel">Web mode ready</div>
-        </div>
-        <p class="briefing-copy placeholder" id="briefingCopy" aria-live="polite">Choose how you would like to interact with Jarvis.</p>
-        <div class="actions">
-          <button class="button primary" id="briefingButton" type="button">Web interactive mode</button>
-          <button class="button" id="listenButton" type="button">Voice mode</button>
-          <button class="button" id="readHeadlinesButton" type="button" hidden>Read headlines</button>
-        </div>
-        <div class="briefing-playback">
-          <button class="button subtle" id="playbackButton" type="button" hidden>Pause audio</button>
-          <button class="button subtle" id="retryAudioButton" type="button" hidden>Tap to play audio</button>
-        </div>
-      </section>
+      <div class="briefing-row">
+        <section class="panel briefing-panel mode-web" id="briefingPanel" data-mode="web" data-state="ready" aria-labelledby="briefingHeading">
+          <div class="panel-heading">
+            <h2 class="panel-title" id="briefingHeading">Daily News briefing</h2>
+            <span class="live-tag" id="modeTag">Web interactive mode</span>
+          </div>
+          <div class="reactor-stage">
+            <div class="reactor mode-web" id="reactor" aria-hidden="true"><div class="reactor-core"></div></div>
+            <div class="reactor-label" id="reactorLabel">Web mode ready</div>
+          </div>
+          <p class="briefing-copy placeholder" id="briefingCopy" aria-live="polite">Choose how you would like to interact with Jarvis.</p>
+          <div class="actions">
+            <button class="button primary" id="briefingButton" type="button">Web interactive mode</button>
+            <button class="button" id="listenButton" type="button">Voice mode</button>
+            <button class="button" id="readHeadlinesButton" type="button" hidden>Read headlines</button>
+          </div>
+          <div class="briefing-playback">
+            <button class="button subtle" id="readDeepDiveButton" type="button" hidden>Read deep dive</button>
+            <button class="button subtle" id="playbackButton" type="button" hidden>Pause audio</button>
+            <button class="button subtle" id="retryAudioButton" type="button" hidden>Tap to play audio</button>
+          </div>
+        </section>
+        <aside class="panel commands-panel" aria-labelledby="commandsHeading">
+          <div class="panel-heading">
+            <h2 class="panel-title" id="commandsHeading">Recommended commands</h2>
+            <span class="topic-count" id="commandPhase">Getting started</span>
+          </div>
+          <p class="commands-kicker" id="commandsIntro">Try one of these supported requests:</p>
+          <ul class="command-list" id="commandList" aria-live="polite"></ul>
+          <p class="commands-note" id="commandsNote">Unlisted requests are not treated as commands. You can also use the buttons and topic controls on this page.</p>
+        </aside>
+      </div>
 
       <div class="dashboard">
         <section class="panel articles" aria-labelledby="articlesHeading">
@@ -438,12 +475,50 @@
       audio: null,
       audioUrl: "",
       speechToken: 0,
+      deepDiveText: "",
+      deepDiveBlocks: [],
+      readingSequenceId: 0,
+      readingBlockIndex: -1,
       speakerStatus: "Not tested",
       voiceEnabled: false,
       activeHours: 24,
       topN: 10,
       briefingRequestId: 0
     };
+
+    function renderRecommendedCommands() {
+      const list = $("#commandList");
+      list.replaceChildren();
+      const commands = state.articles.length
+        ? [
+            ["Select story numbers", "“1” or “1, 2” — retrieve selected stories for a deep dive."],
+            ["Read headlines", "Hear the available headlines aloud."],
+            ["Add topic <topic>", "Start tracking a new news topic."],
+            ["Remove topic <topic>", "Stop tracking a topic."],
+            ["Run briefing", "Fetch an updated set of headlines."]
+          ]
+        : [
+            ["Add topic <topic>", "Start tracking a new news topic."],
+            ["Remove topic <topic>", "Stop tracking a topic."],
+            ["Start briefing", "Search tracked topics for recent headlines."]
+          ];
+      $("#commandPhase").textContent = state.articles.length ? "Headlines ready" : "Getting started";
+      $("#commandsIntro").textContent = state.articles.length
+        ? "With headlines available, try:"
+        : "Before headlines are loaded, try:";
+      for (const [phrase, description] of commands) {
+        const item = document.createElement("li");
+        item.className = "command-item";
+        const command = document.createElement("strong");
+        command.className = "command-phrase";
+        command.textContent = phrase;
+        const detail = document.createElement("span");
+        detail.className = "command-description";
+        detail.textContent = description;
+        item.append(command, detail);
+        list.append(item);
+      }
+    }
 
     function log(message, type = "") {
       const item = document.createElement("li");
@@ -584,6 +659,7 @@
     }
 
     async function refreshSystemStatus() {
+      renderAppServerIndicator("Checking");
       $("#systemsGrid").replaceChildren();
       displayStatus("App server", "Checking", "");
       displayStatus("Exa.ai", "Checking", "");
@@ -593,6 +669,7 @@
       displayStatus("Local audio", "Checking", "");
       try {
         const result = await request("/api/status");
+        renderAppServerIndicator(result.app_server.status);
         $("#systemsGrid").replaceChildren();
         displayStatus("App server", result.app_server.status, result.app_server.detail);
         displayStatus("Exa.ai", result.exa.status, result.exa.detail);
@@ -602,6 +679,7 @@
         renderTopicStatus();
         renderSpeakerStatus();
       } catch (error) {
+        renderAppServerIndicator("Unavailable");
         $("#systemsGrid").replaceChildren();
         displayStatus("App server", "Unavailable", error.message);
         displayStatus("Exa.ai", "Unknown", error.message);
@@ -614,11 +692,20 @@
     }
 
     function setStatus(message, busy = false) {
-      $("#systemState").textContent = busy ? "Processing" : state.profile.topics.length ? "Systems online" : "Add topics to begin";
       $("#reactor").classList.toggle("is-loading", busy);
       $("#briefingButton").disabled = busy;
       setModeActivity(busy ? "processing" : "ready");
       if (message) $("#reactorLabel").textContent = message;
+    }
+
+    function renderAppServerIndicator(status) {
+      const normalizedStatus = String(status || "Unavailable").toLowerCase();
+      const isOnline = normalizedStatus === "online";
+      const isChecking = normalizedStatus === "checking";
+      const light = $(".system-state .state-light");
+      $("#systemState").textContent = isOnline ? "App server online" : isChecking ? "Checking app" : "App unavailable";
+      light.classList.toggle("warning", isChecking);
+      light.classList.toggle("offline", !isOnline && !isChecking);
     }
 
     async function request(path, options = {}) {
@@ -633,7 +720,6 @@
 
     function renderProfile() {
       $("#welcomeName").textContent = state.profile.name;
-      $("#systemState").textContent = state.profile.topics.length ? "Systems online" : "Add topics to begin";
       $("#nameInput").value = state.profile.name;
       state.profile.settings = state.profile.settings || { hours: 24, top_n: 10, voice: "" };
       state.activeHours = state.profile.settings.hours;
@@ -672,6 +758,7 @@
       }
       $("#readHeadlinesButton").hidden = !state.articles.length;
       renderTopicStatus();
+      renderRecommendedCommands();
     }
 
     function voiceLocaleName(locale) {
@@ -794,6 +881,40 @@
       $("#serialForm").hidden = false;
     }
 
+    function renderDeepDiveText(text) {
+      const deepDiveText = String(text || "").trim();
+      state.deepDiveText = deepDiveText;
+      const sentences = deepDiveText.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)?.map((sentence) => sentence.trim()).filter(Boolean) || [];
+      state.deepDiveBlocks = [];
+      for (let index = 0; index < sentences.length;) {
+        const block = [sentences[index++]];
+        while (index < sentences.length && block.length < 3 && block.join(" ").length + sentences[index].length + 1 <= 520) {
+          block.push(sentences[index++]);
+        }
+        state.deepDiveBlocks.push(block.join(" "));
+      }
+      const copy = $("#briefingCopy");
+      copy.replaceChildren(...state.deepDiveBlocks.map((block, index) => {
+        const span = document.createElement("span");
+        span.className = "reading-block";
+        span.dataset.blockIndex = String(index);
+        span.textContent = block;
+        return span;
+      }));
+      copy.classList.remove("placeholder", "is-reading");
+      $("#readDeepDiveButton").hidden = !state.deepDiveBlocks.length;
+      $("#readDeepDiveButton").textContent = "Read deep dive";
+    }
+
+    function clearDeepDiveReader() {
+      state.deepDiveText = "";
+      state.deepDiveBlocks = [];
+      state.readingBlockIndex = -1;
+      $("#readDeepDiveButton").hidden = true;
+      $("#readDeepDiveButton").textContent = "Read deep dive";
+      $("#briefingCopy").classList.remove("is-reading");
+    }
+
     async function loadProfile() {
       const [profile, profileData] = await Promise.all([
         request("/api/profile"),
@@ -822,6 +943,7 @@
         });
         if (state.recognition) state.recognition.stop();
         stopAudio();
+        clearDeepDiveReader();
         state.conversation = "";
         state.profile = result.profile;
         state.selectedNumbers = [];
@@ -848,6 +970,7 @@
         });
         if (state.recognition) state.recognition.stop();
         stopAudio();
+        clearDeepDiveReader();
         state.conversation = "";
         state.profile = result.profile;
         state.articles = [];
@@ -856,9 +979,11 @@
         renderArticles([], state.activeHours, state.topN);
         $("#briefingCopy").textContent = `Profile created for ${state.profile.name}. Add topics to begin tracking.`;
         $("#briefingCopy").classList.remove("placeholder");
-        const profileData = await request("/api/profiles");
-        state.profiles = profileData.profiles;
-        renderProfiles(profileData.active_profile_id);
+        state.profiles = [
+          ...state.profiles.filter((profile) => profile.id !== result.profile.id),
+          { id: result.profile.id, name: result.profile.name }
+        ];
+        renderProfiles(result.active_profile_id);
         log(`Created profile ${state.profile.name}.`, "success");
         return true;
       } catch (error) {
@@ -875,6 +1000,7 @@
           body: JSON.stringify({ topic })
         });
         renderProfile();
+        renderRecommendedCommands();
         const message = action === "add" ? `Now tracking ${topic}.` : `Stopped tracking ${topic}.`;
         log(message, "success");
         speak(message, continueTopicConversation ? askForTopicChanges : undefined);
@@ -898,9 +1024,11 @@
       const requestId = ++state.briefingRequestId;
       if (!await saveProfileSettings()) return;
       if (requestId !== state.briefingRequestId) return;
+      clearDeepDiveReader();
       state.selectedNumbers = [];
       state.articles = [];
       state.conversation = "";
+      renderRecommendedCommands();
       $("#readHeadlinesButton").hidden = true;
       setStatus("Scanning the latest signals", true);
       $("#briefingCopy").textContent = "Searching your tracked topics...";
@@ -914,6 +1042,7 @@
         });
         if (requestId !== state.briefingRequestId) return;
         state.articles = result.articles;
+        renderRecommendedCommands();
         const coveredCount = result.covered_topics?.length ?? new Set(result.articles.map((article) => article.topic)).size;
         const coverageNote = result.uncovered_topics?.length
           ? ` Topics not represented (no distinct result or Top N limit): ${result.uncovered_topics.join(", ")}.`
@@ -958,8 +1087,10 @@
       state.articles = [];
       state.selectedNumbers = [];
       state.conversation = "";
+      renderRecommendedCommands();
       if (state.recognition) stopListening();
       stopAudio();
+      clearDeepDiveReader();
       $("#briefingButton").disabled = false;
       $("#readHeadlinesButton").hidden = true;
       $("#deepDiveControls").hidden = true;
@@ -1000,8 +1131,15 @@
       speak(getHeadlinesSpeech(), askForDeepDive);
     }
 
-    function stopAudio() {
+    function stopAudio(preserveReading = false) {
       state.speechToken += 1;
+      if (!preserveReading) {
+        state.readingSequenceId += 1;
+        state.readingBlockIndex = -1;
+        $("#briefingCopy").classList.remove("is-reading");
+        $("#briefingCopy").querySelectorAll(".reading-block.is-active").forEach((block) => block.classList.remove("is-active"));
+        if (state.deepDiveText) $("#readDeepDiveButton").textContent = "Read deep dive";
+      }
       $("#playbackButton").hidden = true;
       if (state.audio) {
         state.audio.onplay = null;
@@ -1034,9 +1172,47 @@
       }
     }
 
-    async function speak(text, onEnd, force = false) {
+    function failDeepDiveReading(sequenceId) {
+      if (sequenceId !== state.readingSequenceId) return;
+      state.readingSequenceId += 1;
+      state.readingBlockIndex = -1;
+      $("#briefingCopy").classList.remove("is-reading");
+      $("#briefingCopy").querySelectorAll(".reading-block.is-active").forEach((block) => block.classList.remove("is-active"));
+      $("#readDeepDiveButton").textContent = "Read deep dive";
+    }
+
+    function startDeepDiveReading(onEnd) {
+      if (!state.deepDiveBlocks.length) return;
+      setInteractionMode("voice");
+      const sequenceId = ++state.readingSequenceId;
+      const copy = $("#briefingCopy");
+      copy.classList.add("is-reading");
+      $("#readDeepDiveButton").textContent = "Reading deep dive…";
+
+      const playBlock = (index) => {
+        if (sequenceId !== state.readingSequenceId) return;
+        if (index >= state.deepDiveBlocks.length) {
+          state.readingBlockIndex = -1;
+          copy.classList.remove("is-reading");
+          copy.querySelectorAll(".reading-block.is-active").forEach((block) => block.classList.remove("is-active"));
+          $("#readDeepDiveButton").textContent = "Read deep dive again";
+          if (onEnd) onEnd();
+          return;
+        }
+        state.readingBlockIndex = index;
+        const block = copy.querySelector(`[data-block-index="${index}"]`);
+        copy.querySelectorAll(".reading-block.is-active").forEach((item) => item.classList.remove("is-active"));
+        block?.classList.add("is-active");
+        block?.scrollIntoView({ behavior: "smooth", block: "center" });
+        speak(state.deepDiveBlocks[index], () => playBlock(index + 1), true, sequenceId);
+      };
+      playBlock(0);
+    }
+
+    async function speak(text, onEnd, force = false, readingSequenceId = null) {
       if (!text || (!state.voiceEnabled && !force)) return;
-      stopAudio();
+      if (readingSequenceId !== null && readingSequenceId !== state.readingSequenceId) return;
+      stopAudio(readingSequenceId !== null);
       const token = state.speechToken;
       setModeActivity("processing");
       $("#reactorLabel").textContent = "Preparing local audio";
@@ -1069,7 +1245,7 @@
           setModeActivity("paused");
         };
         state.audio.onended = () => {
-          stopAudio();
+          stopAudio(true);
           setModeActivity("ready");
           $("#voiceHint").textContent = `Played with ${state.voice || "the default local voice"}.`;
           if (onEnd) onEnd();
@@ -1081,6 +1257,7 @@
           $("#voiceHint").textContent = "The audio file could not be played. Check your computer’s output device and try again.";
           $("#retryAudioButton").hidden = false;
           log("The browser could not decode or play the generated WAV audio.", "error");
+          if (readingSequenceId !== null) failDeepDiveReading(readingSequenceId);
         };
         await playCurrentAudio();
       } catch (error) {
@@ -1089,7 +1266,8 @@
         $("#reactorLabel").textContent = "Audio unavailable";
         $("#voiceHint").textContent = error.message;
         log(error.message, "error");
-        if (onEnd) onEnd();
+        if (readingSequenceId !== null) failDeepDiveReading(readingSequenceId);
+        else if (onEnd) onEnd();
       }
     }
 
@@ -1120,6 +1298,7 @@
       $("#serialInput").placeholder = "e.g. 1, 2, 3";
       $("#serialForm").hidden = false;
       state.conversation = "deep-dive";
+      renderRecommendedCommands();
       if (state.voiceEnabled) {
         speak("That covers the headlines. Which story numbers would you like me to deep dive? Say each number separately, for example one, two, three. You can say none to skip.", listenForConversation);
       }
@@ -1132,6 +1311,7 @@
       $("#serialInput").placeholder = "Add/remove topic from tracking";
       $("#serialForm").hidden = true;
       state.conversation = "topic-followup";
+      renderRecommendedCommands();
       if (state.voiceEnabled) speak("Would you like any topics added or removed from tracking?", listenForConversation);
     }
 
@@ -1147,23 +1327,22 @@
         eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15,
         sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20
       };
+      const tokenPattern = "(?:\\d+|" + Object.keys(words).join("|") + ")";
+      const selection = text.trim().toLowerCase()
+        .replace(/^(?:please\s+)?(?:select|deep\s+dive\s+into|deep\s+dive|summarize)\s+/i, "")
+        .replace(/\b(?:story|stories|number|numbers)\s+/g, "")
+        .replace(/\band\b/g, ",")
+        .replace(/[.!?]+$/g, "")
+        .trim();
+      const wholeSelection = new RegExp(`^${tokenPattern}(?:\\s*(?:,\\s*|\\s+)${tokenPattern})*$`, "i");
+      if (!wholeSelection.test(selection)) return [];
       const available = new Set(state.articles.map((article) => Number(article.number)));
-      const found = new Set();
-      for (const token of text.toLowerCase().match(/\d+|[a-z]+/g) || []) {
-        if (!/^\d+$/.test(token)) {
-          if (available.has(words[token])) found.add(words[token]);
-          continue;
-        }
-        const number = Number(token);
-        if (available.has(number)) {
-          found.add(number);
-          continue;
-        }
-        if (token.length > 1 && [...token].every((digit) => available.has(Number(digit)))) {
-          for (const digit of token) found.add(Number(digit));
-        }
-      }
-      return [...found].sort((a, b) => a - b);
+      const selected = selection.split(/\s*,\s*|\s+/).map((token) => {
+        if (/^\d+$/.test(token)) return Number(token);
+        return words[token];
+      });
+      if (!selected.length || selected.some((number) => !available.has(number))) return [];
+      return [...new Set(selected)].sort((a, b) => a - b);
     }
 
     async function startDeepDive(text) {
@@ -1197,13 +1376,12 @@
           if (article) article.deepText = detail.text || article.summary;
         }
         renderArticles(state.articles);
-        $("#briefingCopy").textContent = result.deep_dive;
-        $("#briefingCopy").classList.remove("placeholder");
+        renderDeepDiveText(result.deep_dive);
         $("#workflowPrompt").textContent = `Deep dive complete for stories ${numbers.join(", ")}.`;
         setStatus("Deep dive ready");
         log(`Deep dive complete for stories ${numbers.join(", ")}.`, "success");
         state.conversation = "topic-followup";
-        if (state.voiceEnabled) speak(result.deep_dive, askForTopicChanges);
+        if (state.voiceEnabled) startDeepDiveReading(askForTopicChanges);
         else askForTopicChanges();
       } catch (error) {
         setStatus("Deep dive unavailable");
@@ -1243,10 +1421,13 @@
           continueTopicConversation
         );
       }
+      if (/^(?:(?:run|start|begin)\s+)?(?:the\s+)?(?:morning\s+)?briefing$/i.test(command)) return runBriefing();
+      if (/^(?:please\s+)?read\s+headlines$/i.test(command) && state.articles.length) return readHeadlines();
       if (state.conversation === "deep-dive") return startDeepDive(command);
       if (state.conversation === "topic-followup") return processTopicFollowup(command);
-      if (/^(run )?(the )?(morning )?briefing$/i.test(command) || /^run morning briefing$/i.test(command)) return runBriefing();
-      const message = 'Command not recognized. Try “Add topic quantum computing”, “Remove topic Indian politics”, or “Run morning briefing”.';
+      const message = state.articles.length
+        ? 'Command not recognized. Try “1, 2” or “Select story 1”, “Read headlines”, “Add topic …”, “Remove topic …”, or “Run briefing”.'
+        : 'Command not recognized. Try “Add topic …”, “Remove topic …”, or “Start briefing”.';
       log(message, "error");
       speak(message);
     }
@@ -1299,6 +1480,7 @@
       runBriefing();
     });
     $("#readHeadlinesButton").addEventListener("click", readHeadlines);
+    $("#readDeepDiveButton").addEventListener("click", () => startDeepDiveReading());
     $("#resetBriefingButton").addEventListener("click", resetBriefing);
     $("#listenButton").addEventListener("click", () => {
       if (state.mode !== "voice") setInteractionMode("voice");
@@ -1349,8 +1531,7 @@
     $("#serialForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const input = $("#serialInput");
-      if (state.conversation === "deep-dive") startDeepDive(input.value);
-      else if (state.conversation === "topic-followup") processTopicFollowup(input.value);
+      if (input.value.trim()) processCommand(input.value);
       input.value = "";
     });
     $("#skipDeepDiveButton").addEventListener("click", () => startDeepDive("none"));
@@ -1386,6 +1567,7 @@
 
     updateLocalGreeting();
     window.setInterval(updateLocalGreeting, 60000);
+    renderRecommendedCommands();
     log("Local intelligence interface initialized.", "success");
     loadProfile().catch((error) => log(error.message, "error"));
     setInteractionMode("web");
