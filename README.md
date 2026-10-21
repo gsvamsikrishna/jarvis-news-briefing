@@ -1,4 +1,4 @@
-# Jarvis Personal Intelligence
+# Jarvis News (Voice-Interactive Daily News Briefing)
 
 A local, voice-interactive daily news briefing app. FastAPI serves a Stark-inspired HUD, Exa searches recent news, and a local Ollama model turns selected full article text into spoken deep dives.
 
