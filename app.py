@@ -28,6 +28,7 @@ PROFILE_PATH = Path(os.getenv("PROFILE_PATH", BASE_DIR / "data" / "profile.json"
 EXA_API_KEY = os.getenv("EXA_API_KEY")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+MAX_EXA_RESULTS_PER_TOPIC = 10
 DEFAULT_PROFILE = {
     "name": "Vamsi Krishna",
     "topics": ["Artificial Intelligence", "Space exploration", "Global markets"],
@@ -36,6 +37,8 @@ DEFAULT_PROFILE = {
 
 app = FastAPI(title="Jarvis Personal Intelligence", version="1.0.0")
 _profile_lock = threading.RLock()
+_agent_runs_lock = threading.Lock()
+_agent_run_ids: set[str] = set()
 
 
 class TopicRequest(BaseModel):
@@ -67,6 +70,11 @@ class NewsRequest(BaseModel):
 
 class DeepDiveRequest(BaseModel):
     urls: list[str] = Field(min_length=1, max_length=20)
+
+
+class AgentResearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=12000)
+    previous_run_id: Optional[str] = Field(default=None, min_length=1, max_length=100)
 
 
 class SpeechRequest(BaseModel):
@@ -201,7 +209,7 @@ def _search_topic(
         category="news",
         start_published_date=start_published_date,
         end_published_date=end_published_date,
-        num_results=top_n,
+        num_results=min(top_n, MAX_EXA_RESULTS_PER_TOPIC),
         contents={"highlights": True},
     )
     articles: list[dict[str, Any]] = []
@@ -365,7 +373,7 @@ async def index() -> FileResponse:
 
 @app.get("/architecture", include_in_schema=False)
 async def architecture() -> FileResponse:
-    return FileResponse(BASE_DIR / "static" / "architecture.html")
+    return FileResponse(BASE_DIR / "static" / "interactive_architecture.html")
 
 
 @app.get("/api/profile")
@@ -621,8 +629,22 @@ async def create_deep_dive(request: DeepDiveRequest) -> dict[str, Any]:
                 "text": text[:6000] if isinstance(text, str) else "",
             }
         )
+    statuses = []
+    for status in _get_field(result, "statuses", []) or []:
+        error = _get_field(status, "error", {})
+        statuses.append(
+            {
+                "url": str(_get_field(status, "id", "")),
+                "status": str(_get_field(status, "status", "unknown")),
+                "error": str(_get_field(error, "tag", "")) if error else "",
+            }
+        )
     if not any(article["text"].strip() for article in articles):
-        raise HTTPException(status_code=502, detail="Exa returned no readable article text for the selected stories.")
+        failed_count = sum(status["status"] != "success" for status in statuses)
+        detail = "Exa returned no readable article text for the selected stories."
+        if failed_count:
+            detail += f" Extraction failed for {failed_count} selected URL(s)."
+        raise HTTPException(status_code=502, detail=detail)
 
     payload = {
         "model": OLLAMA_MODEL,
@@ -658,5 +680,82 @@ Selected article text:
     return {
         "deep_dive": deep_dive.strip(),
         "articles": articles,
+        "statuses": statuses,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _agent_run_response(run: dict[str, Any]) -> dict[str, Any]:
+    output = run.get("output")
+    if not isinstance(output, dict):
+        output = {}
+    return {
+        "id": run.get("id"),
+        "status": run.get("status", "unknown"),
+        "text": output.get("text"),
+        "grounding": output.get("grounding", []),
+        "error": run.get("error"),
+        "cost": run.get("costDollars"),
+        "stop_reason": run.get("stopReason"),
+    }
+
+
+async def _exa_agent_request(method: str, path: str, payload: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    if not EXA_API_KEY:
+        raise HTTPException(status_code=503, detail="EXA_API_KEY is not configured.")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.request(
+                method,
+                f"https://api.exa.ai{path}",
+                headers={"x-api-key": EXA_API_KEY},
+                json=payload,
+            )
+            response.raise_for_status()
+            result = response.json()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Exa Agent request failed (HTTP {exc.response.status_code}).",
+        ) from exc
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail="Could not communicate with the Exa Agent API.") from exc
+    if not isinstance(result, dict):
+        raise HTTPException(status_code=502, detail="Exa Agent returned an invalid response.")
+    return result
+
+
+@app.post("/api/news/research")
+async def create_agent_research(request: AgentResearchRequest) -> dict[str, Any]:
+    query = request.query.strip()
+    if not query:
+        raise HTTPException(status_code=422, detail="Research query must not be blank.")
+
+    payload: dict[str, Any] = {"query": query, "effort": "low"}
+    if request.previous_run_id:
+        previous_run_id = request.previous_run_id
+        if not re.fullmatch(r"agent_run_[A-Za-z0-9_-]+", previous_run_id):
+            raise HTTPException(status_code=422, detail="The previous research run ID is invalid.")
+        with _agent_runs_lock:
+            if previous_run_id not in _agent_run_ids:
+                raise HTTPException(status_code=404, detail="The previous research run is not available in this session.")
+        payload["previousRunId"] = previous_run_id
+
+    run = await _exa_agent_request("POST", "/agent/runs", payload)
+    run_id = run.get("id")
+    if not isinstance(run_id, str) or not re.fullmatch(r"agent_run_[A-Za-z0-9_-]+", run_id):
+        raise HTTPException(status_code=502, detail="Exa Agent did not return a valid run ID.")
+    with _agent_runs_lock:
+        _agent_run_ids.add(run_id)
+    return _agent_run_response(run)
+
+
+@app.get("/api/news/research/{run_id}")
+async def get_agent_research(run_id: str) -> dict[str, Any]:
+    if not re.fullmatch(r"agent_run_[A-Za-z0-9_-]+", run_id):
+        raise HTTPException(status_code=422, detail="The research run ID is invalid.")
+    with _agent_runs_lock:
+        if run_id not in _agent_run_ids:
+            raise HTTPException(status_code=404, detail="The research run is not available in this session.")
+    run = await _exa_agent_request("GET", f"/agent/runs/{run_id}")
+    return _agent_run_response(run)

@@ -312,13 +312,15 @@
         source: "static/index.html; app.py (GET /)", technology: "HTML, CSS, JavaScript; no frontend build",
         protocol: "HTTP JSON; WAV playback", format: "Pydantic API JSON shapes; audio/wav",
         key: "Profile ID for profile selection; article URL for deep dive",
-        scale: "One static page; deployment replicas not specified", retention: "Browser state behavior varies by UI; server profile is persisted separately",
-        auth: "No application authentication defined", reads: "API profile, stories, status, generated summary and WAV",
-        writes: "Profile/topic/settings/news/deep-dive/speech requests",
+        scale: "One static page; deployment replicas not specified", retention: "Agent one-story usage flag persists in tab sessionStorage; other UI state is page-local",
+        auth: "No application authentication defined", reads: "API profile, stories, status, generated summary, Agent output and WAV",
+        writes: "Profile/topic/settings/news/deep-dive/research/speech requests; Agent session flag",
         volume: "Not specified",
         responsibilities: [
           ["Calls /api/* with JSON and renders briefing and story controls", "Unifies manual and voice-driven briefing workflows."],
-          ["Uses Web Speech API (SpeechRecognition or webkitSpeechRecognition) when supported", "Enables hands-free commands; manual controls remain available."]
+          ["Uses Web Speech API (SpeechRecognition or webkitSpeechRecognition) when supported; recognizes “Research story N with Exa”", "Enables hands-free Agent research while keeping unrelated speech from triggering a paid run."],
+          ["Asks for explicit yes/no confirmation before every new Agent run", "Prevents accidental billed research from a misrecognized voice command."],
+          ["Stores a one-story research-used flag in tab sessionStorage; allows follow-ups tied to that story", "Limits new-story research to one story per browser session while retaining same-story follow-up."]
         ]
       },
       {
@@ -337,6 +339,8 @@
           ["POST /api/news loads settings and calls _search_topic concurrently via asyncio.gather", "Queries each tracked topic within the selected publication window."],
           ["_select_news ranks, reserves a distinct story per topic, then deduplicates similar URLs/titles", "Uses limited Top N slots to improve topic coverage and avoid repeat events."],
           ["POST /api/news/deep-dive validates HTTP(S) URLs, caps article text, and calls Ollama", "Generates a concise spoken deep dive from selected article material only."],
+          ["POST /api/news/research starts a low-effort Exa Agent run; GET /api/news/research/{run_id} retrieves status and output", "Supports optional cited research and follow-up questions from the selected stories."],
+          ["_agent_run_ids tracks run IDs in process memory for same-session polling and follow-ups", "Prevents this app from accepting unknown or previous-process run IDs."],
           ["GET /api/status checks Exa, Ollama, and local speech-tool availability", "Shows operational readiness before a user starts a workflow."]
         ]
       },
@@ -367,10 +371,30 @@
         key: "Article URL; topic query", scale: "Per-topic concurrent requests; no partition/shard setting",
         retention: "Service-side retention not specified in repository", auth: "API key environment variable; key value excluded",
         reads: "Topic query/date window; selected article URLs", writes: "News result metadata/highlights; retrieved text",
-        volume: "num_results=top_n per topic; deep-dive text max 6,000 chars per article",
+        volume: "num_results=min(top_n, 10) per topic; deep-dive text max 6,000 chars per article",
         responsibilities: [
           ["Exa.search(type='fast', category='news', highlights=True) for each topic", "Finds recent news and returns concise source material."],
           ["Exa.get_contents(urls, text={max_characters: 6000}) for selected stories", "Fetches full text only after the user requests a deep dive."]
+        ]
+      },
+      {
+        id: "exa-agent", x: 1200, y: 475, category: "integration", type: "EXTERNAL RESEARCH API", title: "Exa Agent",
+        subtitle: "Optional cited research · follow-up runs",
+        label: "<b>Exa Agent</b>\n<code>POST /agent/runs · effort low</code>\n<code>status · text · grounding · cost</code>",
+        source: "app.py (_exa_agent_request, create_agent_research, get_agent_research); static/index.html",
+        technology: "Exa Agent REST API; fixed low effort",
+        protocol: "HTTPS JSON; API key from EXA_API_KEY",
+        format: "{query, effort, previousRunId?} → {id, status, output.text, output.grounding, costDollars}",
+        key: "Agent run ID (agent_run_…); previousRunId for follow-up",
+        scale: "One Agent run per request; app polling interval 4 seconds; provider concurrency not specified",
+        retention: "Provider run retention not specified; app run-ID allowlist is in process memory and resets on restart",
+        auth: "API key in server environment; key value excluded",
+        reads: "Research query and optional previous run ID",
+        writes: "Research status, answer text, grounding citations, cost and stop reason",
+        volume: "Low effort; no dollar cap configured; request timeout 30 seconds",
+        responsibilities: [
+          ["POST /agent/runs starts research with effort='low'; optional previousRunId continues a completed run", "Adds sourced, broader research after the user selects headlines, without slowing the fast headline path."],
+          ["GET /agent/runs/{run_id} returns status and completed output for browser polling", "Lets the user follow progress, inspect citations, and ask a follow-up question."]
         ]
       },
       {
@@ -435,6 +459,8 @@
       { from: "api", to: "profile", label: "read / atomic write", style: "local" },
       { from: "api", to: "exa", label: "search / get_contents", style: "lookup" },
       { from: "exa", to: "api", label: "results / article text", style: "lookup" },
+      { from: "api", to: "exa-agent", label: "POST run / GET status", style: "lookup" },
+      { from: "exa-agent", to: "api", label: "status / grounding / cost", style: "lookup" },
       { from: "api", to: "ollama", label: "HTTP POST · prompt", style: "local" },
       { from: "ollama", to: "api", label: "generated summary", style: "local" },
       { from: "api", to: "speech", label: "local subprocess", style: "local" },
@@ -453,13 +479,13 @@
     const boundarySpecs = [
       { id: "browser-boundary", label: "USER DEVICE · BROWSER", nodes: ["user", "browser", "output"], color: COLORS.source, style: "outer" },
       { id: "host-boundary", label: "APPLICATION HOST · LOCAL", nodes: ["api", "profile", "ollama", "speech"], color: COLORS.processing, style: "outer" },
-      { id: "exa-boundary", label: "EXTERNAL SERVICE", nodes: ["exa"], color: COLORS.integration, style: "nested" }
+      { id: "exa-boundary", label: "EXTERNAL EXA SERVICES", nodes: ["exa", "exa-agent"], color: COLORS.integration, style: "nested" }
     ];
     const headers = [
       { x: 340, title: "CLIENT & INPUTS", sub: "browser UI · speech input" },
       { x: 500, title: "API & ORCHESTRATION", sub: "validation · routing · selection" },
       { x: 820, title: "LOCAL HOST SERVICES", sub: "profile file · model · speech" },
-      { x: 1140, title: "EXTERNAL SERVICES", sub: "search and article content" }
+      { x: 1140, title: "EXTERNAL SERVICES", sub: "search · article content · research" }
     ];
     let showEdgeLabels = true;
     let currentFlow = null;
@@ -681,7 +707,7 @@
           { node: "api", title: "Validate and resolve preferences", note: "NewsRequest allows hours 1–168 and top_n 3–20; omitted values come from active profile settings.", data: { request: { hours: 24, top_n: 5 }, effective: { hours: 24, top_n: 5 }, checks: ["EXA_API_KEY configured", "profile has at least one topic"] } },
           { node: "profile", title: "Read active profile", note: "The saved schema carries profile identity, topics, and settings; actual values are private and omitted.", data: { active_profile_id: "‹id›", profiles: { "‹id›": { name: "‹profile name›", topics: ["‹tracked topic›"], settings: { hours: 24, top_n: 5, voice: "‹voice›" } } } } },
           { node: "api", title: "Resolve query window and dispatch", note: "create_news_briefing computes UTC publication bounds and gathers one _search_topic call per tracked topic.", data: { hours: 24, top_n: 5, start_published_date: "‹UTC cutoff›", end_published_date: "‹UTC request time›", fanout: "one Exa search per topic" } },
-          { node: "exa", title: "Search each tracked topic", note: "Exa SDK search uses fast news results, publication bounds, highlights, and num_results=top_n.", data: { query: "Latest news about ‹tracked topic›", type: "fast", category: "news", start_published_date: "‹UTC cutoff›", end_published_date: "‹UTC request time›", num_results: 5, contents: { highlights: true }, result: { title: "‹story title›", url: "https://‹article›", published_date: "‹timestamp›", highlights: ["‹source highlight›"], score: "‹numeric relevance›" } } },
+          { node: "exa", title: "Search each tracked topic", note: "Exa SDK search uses fast news results, publication bounds, highlights, and num_results=min(top_n, 10). The 10-result ceiling avoids per-result charges above Exa's base allowance.", data: { query: "Latest news about ‹tracked topic›", type: "fast", category: "news", start_published_date: "‹UTC cutoff›", end_published_date: "‹UTC request time›", num_results: 5, configured_top_n: 5, max_results_per_topic: 10, contents: { highlights: true }, result: { title: "‹story title›", url: "https://‹article›", published_date: "‹timestamp›", highlights: ["‹source highlight›"], score: "‹numeric relevance›" } } },
           { node: "api", title: "Select and deduplicate", note: "_select_news sorts by score, reserves distinct topic coverage, then fills remaining slots; URL/title similarity can suppress duplicates.", data: { article: { topic: "‹tracked topic›", title: "‹story title›", url: "https://‹article›", source: "‹derived from URL›", published_date: "‹timestamp›", summary: "‹joined highlights, max 1800 chars›", number: "1" } } },
           { node: "browser", title: "Return the briefing", note: "API response includes story array, coverage, preferences, and UTC generation time.", data: { articles: [{ topic: "‹tracked topic›", title: "‹story title›", url: "https://‹article›", source: "‹source›", published_date: "‹timestamp›", summary: "‹summary›", number: "1" }], covered_topics: ["‹tracked topic›"], uncovered_topics: [], hours: 24, top_n: 5, generated_at: "‹UTC timestamp›" } },
           { node: "output", title: "Display story cards", note: "The browser presents returned stories and lets the user select articles for a deep dive.", data: { displayed_article_numbers: ["1"], selected_urls_for_deep_dive: [] } }
@@ -762,6 +788,24 @@
           { node: "api", title: "Pydantic validates and updates active record", note: "ProfileSettingsRequest applies numeric ranges and voice max length before replacing settings.", data: { settings: { hours: 24, top_n: 5, voice: "‹voice›" }, validation: { hours: "1..168", top_n: "3..20", voice: "max 100 chars" } } },
           { node: "profile", title: "Atomic JSON write", note: "_save_profile_store holds RLock, writes UTF-8 JSON to a temporary sibling file, then os.replace commits it.", data: { file: "‹PROFILE_PATH; default data/profile.json›", encoding: "UTF-8 JSON", write_steps: ["create parent directory if needed", "write temporary file", "os.replace(temp, target)"], ttl: "none specified" } },
           { node: "browser", title: "Return active profile", note: "Updated active profile JSON is returned to refresh the UI.", data: { response: { id: "‹id›", name: "‹profile name›", topics: ["‹topic›"], settings: { hours: 24, top_n: 5, voice: "‹voice›" } } } }
+        ]
+      },
+      {
+        id: "exa-agent-research", name: "Exa Agent research + follow-up", outcome: "success",
+        outcomeText: "Completed · voice or button request is explicitly confirmed; exactly one headline is researched per browser-tab session, then same-story follow-ups remain available.",
+        summary: "Voice or the existing button can request research on exactly one headline. The UI requires explicit confirmation, limits new-story research to one per browser tab session, and permits confirmed follow-ups tied to that story.",
+        steps: [
+          { node: "user", title: "Request research for one headline", note: "The user says “Research story 3 with Exa” or selects exactly one headline and clicks the research button.", data: { action: "voice or button request", selected_story: { number: "3", title: "‹story title›", url: "https://‹article URL›" } } },
+          { node: "browser", title: "Confirm the paid run", note: "The browser asks for yes/no confirmation and discloses that low-effort runs are billed at a flat per-run price. Voice waits for yes/no; buttons are available as fallback.", data: { conversation_state: "exa-confirmation", accepted_voice: ["yes", "confirm", "start"], rejected_voice: ["no", "cancel"], api_calls_before_confirmation: 0 } },
+          { node: "user", title: "Confirm one-story research", note: "Only an explicit yes starts the Exa Agent run; no cancels without a request.", data: { response: "yes", story_number: 3 } },
+          { node: "browser", title: "Build the single-story query", note: "The UI includes only the selected headline and URL in the Agent query.", data: { method: "POST", path: "/api/news/research", body: { query: "Research this story in depth and cite sources: ‹headline› · https://‹article URL›", previous_run_id: null } } },
+          { node: "api", title: "Validate and start Agent run", note: "AgentResearchRequest bounds query length; blank trimmed queries are rejected. The server sends effort='low' and records the returned run ID in process memory.", data: { request: { query: "‹research query for one story›", effort: "low" }, upstream: { method: "POST", path: "/agent/runs", body: { query: "‹research query›", effort: "low" } }, response: { id: "agent_run_‹id›", status: "running" } } },
+          { node: "exa-agent", title: "Research the selected story", note: "Exa Agent performs the requested research; effort is fixed at low with no configured dollar cap.", data: { run: { id: "agent_run_‹id›", status: "running" } } },
+          { node: "browser", title: "Poll until completion", note: "The browser polls every 4 seconds through GET /api/news/research/{run_id}; the API only proxies IDs registered by this running app process.", data: { method: "GET", path: "/api/news/research/agent_run_‹id›", response: { id: "agent_run_‹id›", status: "completed", text: "‹research answer›", grounding: [{ title: "‹source title›", url: "https://‹source URL›" }], cost: "‹provider-reported cost, if present›", stop_reason: "‹provider value, if present›" } } },
+          { node: "output", title: "Show and speak findings", note: "The UI renders grounding links and speaks the answer when voice mode is active; it offers same-story follow-up.", data: { displayed_and_spoken_answer: "‹research answer›", sources: [{ title: "‹source title›", url: "https://‹source URL›" }], follow_up_available: true } },
+          { node: "user", title: "Ask a confirmed follow-up", note: "The user says “Ask Exa: what changed since then?” and confirms. Follow-ups stay attached to the one researched story.", data: { voice_query: "Ask Exa: what changed since then?", confirmation: "yes", previous_run_id: "agent_run_‹id›" } },
+          { node: "api", title: "Continue the prior Agent run", note: "The API verifies the previous ID belongs to this process, then maps it to Exa's previousRunId field.", data: { method: "POST", path: "/api/news/research", body: { query: "What changed since then?", previous_run_id: "agent_run_‹id›" }, upstream_body: { query: "What changed since then?", effort: "low", previousRunId: "agent_run_‹id›" } } },
+          { node: "exa-agent", title: "Return follow-up research", note: "The completed follow-up run is polled and rendered using the same status, answer, and grounding fields.", data: { response: { id: "agent_run_‹follow-up-id›", status: "completed", text: "‹follow-up findings›", grounding: [{ title: "‹source title›", url: "https://‹source URL›" }], cost: "‹provider-reported cost, if present›" } } }
         ]
       }
     ];
