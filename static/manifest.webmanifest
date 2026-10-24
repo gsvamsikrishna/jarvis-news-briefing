@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Jarvis Personal Intelligence",
+  "short_name": "Jarvis News",
+  "description": "A personal, voice-interactive news briefing.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#070b10",
+  "theme_color": "#070b10",
+  "icons": [
+    {
+      "src": "/icons/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

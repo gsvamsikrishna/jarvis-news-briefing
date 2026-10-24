@@ -272,7 +272,7 @@ def _select_news(candidates: list[dict[str, Any]], topics: list[str], top_n: int
     candidates.sort(key=lambda article: article["score"], reverse=True)
     selected: list[dict[str, Any]] = []
 
-    # Reserve one distinct story for each topic before filling the remaining slots.
+    # Preserve topic coverage by taking at most one story per topic in each round.
     topic_priority = sorted(
         topics,
         key=lambda topic: max(
@@ -281,26 +281,25 @@ def _select_news(candidates: list[dict[str, Any]], topics: list[str], top_n: int
         ),
         reverse=True,
     )
-    for topic in topic_priority:
-        if len(selected) == top_n:
+    while len(selected) < top_n:
+        added_this_round = False
+        for topic in topic_priority:
+            if len(selected) == top_n:
+                break
+            article = next(
+                (
+                    candidate
+                    for candidate in candidates
+                    if candidate["topic"] == topic
+                    and not any(_same_news_event(candidate, chosen) for chosen in selected)
+                ),
+                None,
+            )
+            if article is not None:
+                selected.append(article)
+                added_this_round = True
+        if not added_this_round:
             break
-        article = next(
-            (
-                candidate
-                for candidate in candidates
-                if candidate["topic"] == topic
-                and not any(_same_news_event(candidate, chosen) for chosen in selected)
-            ),
-            None,
-        )
-        if article is not None:
-            selected.append(article)
-
-    for article in candidates:
-        if len(selected) == top_n:
-            break
-        if not any(_same_news_event(article, chosen) for chosen in selected):
-            selected.append(article)
     return selected
 
 
@@ -371,7 +370,30 @@ async def index() -> FileResponse:
     return FileResponse(BASE_DIR / "static" / "index.html")
 
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+async def web_app_manifest() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "manifest.webmanifest",
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/service-worker.js", include_in_schema=False)
+async def service_worker() -> FileResponse:
+    return FileResponse(
+        BASE_DIR / "static" / "service-worker.js",
+        media_type="application/javascript",
+        headers={"Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/icons/app-icon.svg", include_in_schema=False)
+async def app_icon() -> FileResponse:
+    return FileResponse(BASE_DIR / "static" / "app-icon.svg", media_type="image/svg+xml")
+
+
 @app.get("/architecture", include_in_schema=False)
+@app.get("/interactive_architecture.html", include_in_schema=False)
 async def architecture() -> FileResponse:
     return FileResponse(BASE_DIR / "static" / "interactive_architecture.html")
 
