@@ -3,3 +3,7 @@
 __pycache__/
 *.py[cod]
 data/profile.json
+data/exa-monitor-events.sqlite3
+data/exa-monitor-events.sqlite3-shm
+data/exa-monitor-events.sqlite3-wal
+data/exa-monitor-events.sqlite3-journal

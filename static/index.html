@@ -274,6 +274,19 @@
     .article-details { grid-column: 1 / -1; color: #8ba3a9; font-size: 11px; }
     .article-details summary { width: fit-content; color: var(--cyan); cursor: pointer; font-size: 10px; letter-spacing: .06em; }
     .article-detail-text { max-height: 240px; overflow-y: auto; margin: 9px 0 0; padding: 10px; border-left: 2px solid rgba(98, 228, 244, .4); background: rgba(3, 9, 13, .52); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .monitor-news { margin-top: 20px; padding: 22px; }
+    .monitor-news-list { display: grid; gap: 12px; margin-top: 15px; }
+    .monitor-event { padding: 13px; border: 1px solid rgba(76, 207, 239, .14); background: rgba(5, 12, 17, .42); }
+    .monitor-event-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+    .monitor-event-title { margin: 0; color: var(--cyan); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+    .monitor-event-meta { color: var(--muted); font-size: 9px; }
+    .monitor-event-content { margin: 9px 0; color: #91a8ae; font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
+    .monitor-result-list { display: grid; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+    .monitor-result { padding: 10px; border-left: 2px solid rgba(98, 228, 244, .35); background: rgba(3, 9, 13, .42); }
+    .monitor-result a { color: #cce2e5; font-size: 12px; line-height: 1.45; text-decoration: none; }
+    .monitor-result a:hover { color: var(--cyan-bright); }
+    .monitor-result-meta { margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .monitor-result-summary { margin: 7px 0 0; color: #91a8ae; font-size: 11px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
     .log-list { max-height: 180px; overflow-y: auto; }
     .empty-state { color: var(--muted); font-size: 11px; }
     .footer { padding: 0 0 22px; color: #506269; font-size: 9px; letter-spacing: .1em; text-align: center; }
@@ -420,6 +433,19 @@
         </section>
       </div>
 
+      <section class="panel monitor-news" aria-labelledby="monitorNewsHeading">
+        <div class="panel-heading">
+          <h2 class="panel-title" id="monitorNewsHeading">Exa Monitor News</h2>
+          <div class="article-heading-actions">
+            <span class="topic-count" id="monitorNewsStatus" aria-live="polite">Loading monitor updates…</span>
+            <button class="button subtle" id="refreshMonitorNewsButton" type="button">Refresh updates</button>
+          </div>
+        </div>
+        <div class="monitor-news-list" id="monitorNewsList" aria-live="polite">
+          <div class="empty-state">Loading completed Monitor results…</div>
+        </div>
+      </section>
+
       <div class="management-grid">
         <section class="panel topics-panel" aria-labelledby="topicsHeading">
           <div class="panel-heading">
@@ -553,7 +579,8 @@
       agentResearchUsed: readAgentResearchSessionFlag(),
       agentResearchStoryNumber: null,
       pendingAgentResearch: null,
-      agentResearchStarting: false
+      agentResearchStarting: false,
+      monitorNewsLoading: false
     };
 
     function readAgentResearchSessionFlag() {
@@ -1056,6 +1083,111 @@
       $("#deepDiveControls").hidden = false;
       $("#serialForm").hidden = false;
       updateStorySelectionControls();
+    }
+
+    function renderMonitorNews(events) {
+      const list = $("#monitorNewsList");
+      list.replaceChildren();
+      const resultCount = events.reduce((total, event) => total + event.results.length, 0);
+      $("#monitorNewsStatus").textContent = `${events.length} completed run${events.length === 1 ? "" : "s"} · ${resultCount} result${resultCount === 1 ? "" : "s"}`;
+      if (!events.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = "No completed Monitor results yet. Completed updates received by the webhook will appear here.";
+        list.append(empty);
+        return;
+      }
+
+      for (const event of events) {
+        const card = document.createElement("article");
+        card.className = "monitor-event";
+        const heading = document.createElement("div");
+        heading.className = "monitor-event-heading";
+        const title = document.createElement("h3");
+        title.className = "monitor-event-title";
+        title.textContent = "Monitor update";
+        const meta = document.createElement("span");
+        meta.className = "monitor-event-meta";
+        const received = new Date(event.received_at);
+        const receivedLabel = Number.isNaN(received.getTime()) ? event.received_at : received.toLocaleString();
+        meta.textContent = `Received ${receivedLabel}`;
+        heading.append(title, meta);
+        card.append(heading);
+
+        if (event.content) {
+          const content = document.createElement("p");
+          content.className = "monitor-event-content";
+          content.textContent = event.content;
+          card.append(content);
+        }
+
+        if (event.results.length) {
+          const results = document.createElement("ul");
+          results.className = "monitor-result-list";
+          for (const result of event.results) {
+            const item = document.createElement("li");
+            item.className = "monitor-result";
+            let parsedUrl = null;
+            try {
+              const candidateUrl = new URL(result.url);
+              if (candidateUrl.protocol === "http:" || candidateUrl.protocol === "https:") parsedUrl = candidateUrl;
+            } catch {}
+            const validUrl = parsedUrl !== null;
+            if (validUrl) {
+              const link = document.createElement("a");
+              link.href = parsedUrl.href;
+              link.target = "_blank";
+              link.rel = "noopener noreferrer";
+              link.textContent = result.title;
+              item.append(link);
+            } else {
+              const resultTitle = document.createElement("strong");
+              resultTitle.textContent = result.title;
+              item.append(resultTitle);
+            }
+            const resultMeta = document.createElement("div");
+            resultMeta.className = "monitor-result-meta";
+            const published = result.published_date ? `Published ${result.published_date}` : "";
+            resultMeta.textContent = [published, validUrl ? parsedUrl.hostname : ""].filter(Boolean).join(" · ");
+            if (resultMeta.textContent) item.append(resultMeta);
+            if (result.summary) {
+              const summary = document.createElement("p");
+              summary.className = "monitor-result-summary";
+              summary.textContent = result.summary;
+              item.append(summary);
+            }
+            results.append(item);
+          }
+          card.append(results);
+        } else if (!event.content) {
+          const empty = document.createElement("p");
+          empty.className = "monitor-event-content";
+          empty.textContent = "The completed run contained no result items.";
+          card.append(empty);
+        }
+        $("#monitorNewsList").append(card);
+      }
+    }
+
+    async function refreshMonitorNews() {
+      if (state.monitorNewsLoading) return;
+      state.monitorNewsLoading = true;
+      const button = $("#refreshMonitorNewsButton");
+      button.disabled = true;
+      $("#monitorNewsStatus").textContent = "Checking for Monitor updates…";
+      try {
+        const result = await request("/api/monitors/news");
+        renderMonitorNews(result.events || []);
+      } catch (error) {
+        $("#monitorNewsStatus").textContent = "Could not load Monitor updates";
+        $("#monitorNewsList").replaceChildren(Object.assign(document.createElement("div"), {
+          className: "empty-state",
+          textContent: error.message
+        }));
+      } finally {
+        state.monitorNewsLoading = false;
+        button.disabled = false;
+      }
     }
 
     function updateStorySelectionControls() {
@@ -2089,6 +2221,7 @@
       });
     });
     $("#refreshStatusButton").addEventListener("click", refreshSystemStatus);
+    $("#refreshMonitorNewsButton").addEventListener("click", refreshMonitorNews);
     $("#voiceSelect").addEventListener("change", (event) => {
       state.voice = event.target.value;
       $("#voiceHint").textContent = `Selected local voice: ${state.voice}.`;
@@ -2156,6 +2289,8 @@
     setInteractionMode("web");
     populateVoices();
     refreshSystemStatus();
+    refreshMonitorNews();
+    window.setInterval(refreshMonitorNews, 60000);
   </script>
 </body>
 </html>

@@ -65,6 +65,36 @@ For trusted HTTPS on a local Wi-Fi network, install [mkcert](https://github.com/
 
 The dashboard is a small installable web app: its manifest and service worker cache only the app shell. API-backed features still need the Mac and its network services to be available.
 
+## Exa Monitor webhook receiver
+
+Run the Monitor receiver as a separate service so a public ngrok tunnel does not expose the unauthenticated Jarvis dashboard/API:
+
+1. When creating an Exa Monitor, set its webhook URL to `https://<your-ngrok-domain>/webhooks/exa` and subscribe to `monitor.run.completed`. Save the returned `webhookSecret` immediately; Exa only returns it at creation.
+2. In a dedicated terminal, set the secret in the environment and start the receiver:
+
+   ```bash
+   export EXA_MONITOR_WEBHOOK_SECRET="<webhookSecret returned by Exa>"
+   .venv/bin/uvicorn exa_webhook:app --host 127.0.0.1 --port 8001
+   ```
+
+   Confirm the receiver is running with `curl http://127.0.0.1:8001/healthz`. Keep the secret private. Do not put it in the repository, the monitor query, or logs.
+3. In another terminal, start ngrok:
+
+   ```bash
+   ngrok http 8001
+   ```
+
+   Use the HTTPS forwarding domain printed by ngrok when configuring the monitor. Keep both processes running. If a temporary ngrok URL changes, update the monitor's webhook URL.
+4. Exa posts signed events to `POST /webhooks/exa`. The receiver verifies `Exa-Signature` against the original request bytes using HMAC-SHA256 and `EXA_MONITOR_WEBHOOK_SECRET`, limits payloads to 2 MiB, and stores verified events in `data/exa-monitor-events.sqlite3`. Event IDs are unique, so retries are acknowledged as duplicates without storing the same event twice. The receiver does not expose event contents through an HTTP read endpoint.
+
+The receiver listens on localhost port 8001; do not change it to `0.0.0.0` when using ngrok. Only the receiver is tunneled. Exa Monitor is not a Zero Data Retention API, and the SQLite database contains the delivered event payloads; protect the Mac account and remove the database when the stored events are no longer needed.
+
+### View Monitor results in Jarvis
+
+Start the Jarvis dashboard on port 8000 as usual, in addition to the receiver. The dashboard reads completed events from the same `data/exa-monitor-events.sqlite3` database. After a completed Monitor webhook has been received, open the Jarvis page and use **Exa Monitor News → Refresh updates**; the section also refreshes automatically once a minute. This is separate from daily briefing results.
+
+If you override the database location, set `EXA_MONITOR_EVENTS_DB` to the same path in both service terminals before starting the receiver and the dashboard. The dashboard API only reads the local SQLite file; it does not expose the webhook receiver or its database over ngrok. Keep Monitor event data protected and delete it when no longer needed.
+
 ## API
 
 - `GET /api/profile` — read the active profile and topics.
@@ -76,6 +106,7 @@ The dashboard is a small installable web app: its manifest and service worker ca
 - `POST /api/topics/add` — add a topic with `{"topic":"..."}`.
 - `POST /api/topics/remove` — remove a topic with `{"topic":"..."}`.
 - `GET /api/status` — check the app, Exa, Ollama/model, browser speech recognition, and local audio status.
+- `GET /api/monitors/news` — read recent completed Exa Monitor results stored by the local webhook receiver.
 - `GET /api/speech/voices` — list voices installed on the macOS host running FastAPI.
 - `POST /api/speech` — synthesize `{"text":"...","voice":"..."}` into a WAV audio response for browser playback.
 - `POST /api/news` — search tracked topics with `{"hours":24,"top_n":10}`. Either field may be omitted to use the active profile's saved preference. The look-back value can be 1–168 hours (up to seven days); top N can be 3–20 stories across all topics. The backend selects stories in relevance-ordered rounds, taking at most one distinct story per topic per round to distribute coverage. Topics with fewer eligible stories or duplicates leave slots for other topics in later rounds. If the number of topics with news exceeds Top N, not every topic can fit; the response reports covered and uncovered topics. Similar headlines and identical URLs are deduplicated as likely reports of the same event.

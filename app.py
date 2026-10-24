@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import tempfile
 import threading
@@ -28,6 +29,9 @@ PROFILE_PATH = Path(os.getenv("PROFILE_PATH", BASE_DIR / "data" / "profile.json"
 EXA_API_KEY = os.getenv("EXA_API_KEY")
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+EXA_MONITOR_EVENTS_DB = Path(
+    os.getenv("EXA_MONITOR_EVENTS_DB", BASE_DIR / "data" / "exa-monitor-events.sqlite3")
+)
 MAX_EXA_RESULTS_PER_TOPIC = 10
 DEFAULT_PROFILE = {
     "name": "Vamsi Krishna",
@@ -618,6 +622,91 @@ async def create_news_briefing(request: NewsRequest) -> dict[str, Any]:
         "top_n": top_n,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _read_monitor_news(limit: int = 20) -> dict[str, Any]:
+    if not EXA_MONITOR_EVENTS_DB.exists():
+        return {"events": []}
+
+    try:
+        with sqlite3.connect(EXA_MONITOR_EVENTS_DB, timeout=10) as connection:
+            connection.row_factory = sqlite3.Row
+            rows = connection.execute(
+                """
+                SELECT event_id, event_type, monitor_id, run_id, received_at, payload_json
+                FROM exa_monitor_events
+                WHERE event_type = 'monitor.run.completed'
+                ORDER BY received_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=500, detail="Could not read saved Exa Monitor results.") from exc
+
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        try:
+            payload = json.loads(row["payload_json"])
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Saved Exa Monitor event {row['event_id']} contains invalid JSON.",
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Saved Exa Monitor event {row['event_id']} is not a JSON object.",
+            )
+
+        data = payload.get("data")
+        data = data if isinstance(data, dict) else {}
+        output = data.get("output")
+        output = output if isinstance(output, dict) else {}
+        raw_results = output.get("results")
+        results: list[dict[str, str]] = []
+        if isinstance(raw_results, list):
+            for result in raw_results:
+                if not isinstance(result, dict):
+                    continue
+                highlights = result.get("highlights")
+                if isinstance(highlights, list):
+                    summary = " ".join(item for item in highlights if isinstance(item, str) and item)
+                elif isinstance(highlights, str):
+                    summary = highlights
+                else:
+                    summary = result.get("summary") or result.get("text") or ""
+                title = result.get("title")
+                url = result.get("url")
+                published_date = result.get("publishedDate") or result.get("published_date")
+                if not isinstance(summary, str):
+                    summary = ""
+                results.append(
+                    {
+                        "title": title if isinstance(title, str) and title else "Untitled result",
+                        "url": url if isinstance(url, str) else "",
+                        "published_date": published_date if isinstance(published_date, str) else "",
+                        "summary": summary[:3000],
+                    }
+                )
+
+        events.append(
+            {
+                "event_id": row["event_id"],
+                "monitor_id": row["monitor_id"],
+                "run_id": row["run_id"],
+                "received_at": row["received_at"],
+                "status": data.get("status") if isinstance(data.get("status"), str) else "completed",
+                "content": output.get("content") if isinstance(output.get("content"), str) else "",
+                "results": results,
+            }
+        )
+    return {"events": events}
+
+
+@app.get("/api/monitors/news")
+async def get_monitor_news() -> dict[str, Any]:
+    return await run_in_threadpool(_read_monitor_news)
 
 
 @app.post("/api/news/deep-dive")
